@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # Next.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/computing-portal
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - JUPYTERHUB_URL=http://jupyterhub:8000
+    depends_on:
+      - mongo
+      - jupyterhub
+    networks:
+      - portal-network
+
+  # MongoDB Database
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - portal-network
+
+  # JupyterHub (optional - for full Python execution)
+  jupyterhub:
+    image: jupyterhub/jupyterhub:4
+    ports:
+      - "8000:8000"
+    volumes:
+      - jupyterhub-data:/srv/jupyterhub
+      - ./jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py
+    environment:
+      - DOCKER_NETWORK_NAME=portal-network
+    networks:
+      - portal-network
+
+volumes:
+  mongo-data:
+  jupyterhub-data:
+
+networks:
+  portal-network:
+    driver: bridge

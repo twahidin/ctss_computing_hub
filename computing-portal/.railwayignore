@@ -1,0 +1,41 @@
+# Railway Ignore - files to exclude from Railway deployments
+
+# Development files
+.env.local
+.env.development
+*.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation (optional - remove if you want docs in deployment)
+# *.md
+
+# Docker compose (not needed on Railway)
+docker-compose.yml
+
+# JupyterHub config (if not using)
+jupyterhub_config.py
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__/
+
+# Build artifacts (will be rebuilt)
+.next/
+node_modules/
+

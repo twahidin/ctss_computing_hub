@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 250, 250, 250;
+  --background-end-rgb: 255, 255, 255;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgb(var(--background-end-rgb))
+  )
+  rgb(var(--background-start-rgb));
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+/* FortuneSheet container adjustments */
+.fortune-sheet-container {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Jupyter iframe container */
+.jupyter-container {
+  width: 100%;
+  height: calc(100vh - 120px);
+  border: none;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Code editor styling */
+.code-editor {
+  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+}
+
+/* AI Chat styling */
+.chat-message {
+  @apply p-4 rounded-lg mb-3;
+}
+
+.chat-message.user {
+  @apply bg-primary-100 ml-8;
+}
+
+.chat-message.assistant {
+  @apply bg-gray-100 mr-8;
+}
+
+/* Module cards */
+.module-card {
+  @apply p-6 bg-white rounded-xl shadow-sm border border-gray-200 
+         hover:shadow-md hover:border-primary-300 transition-all duration-200;
+}
+
+/* Loading spinner */
+.spinner {
+  @apply animate-spin rounded-full border-4 border-gray-200 border-t-primary-500;
+}

@@ -140,7 +140,7 @@ const spreadsheetTemplates = [
 ];
 
 export default function SpreadsheetPage() {
-  const [sheetData, setSheetData] = useState([
+  const [sheetData, setSheetData] = useState<any[]>([
     {
       name: 'Sheet1',
       celldata: [],

@@ -147,7 +147,12 @@ export default function SpreadsheetPage() {
   const [showHelp, setShowHelp] = useState(false);
 
   const loadTemplate = (template: typeof spreadsheetTemplates[0]) => {
-    setSheetData(template.data);
+    // Add config property to each sheet if missing
+    const dataWithConfig = template.data.map(sheet => ({
+      ...sheet,
+      config: sheet.config || {}
+    }));
+    setSheetData(dataWithConfig);
     setShowTemplates(false);
     toast.success(`Loaded: ${template.name}`);
   };

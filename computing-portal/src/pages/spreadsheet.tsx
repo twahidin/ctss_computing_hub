@@ -1,13 +1,47 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Component, ReactNode } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { FiSave, FiDownload, FiUpload, FiHelpCircle, FiChevronDown } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import '@fortune-sheet/react/dist/index.css';
+
+// Error Boundary Component
+class ErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; fallback: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('Spreadsheet Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
 
 // Dynamically import FortuneSheet to avoid SSR issues
 const Workbook = dynamic(
   () => import('@fortune-sheet/react').then((mod) => mod.Workbook),
-  { ssr: false }
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-gray-600">Loading spreadsheet...</div>
+      </div>
+    )
+  }
 );
 
 // Sample data templates for 7155 syllabus exercises
@@ -149,6 +183,7 @@ export default function SpreadsheetPage() {
   ]);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [spreadsheetError, setSpreadsheetError] = useState<string | null>(null);
 
   const loadTemplate = (template: typeof spreadsheetTemplates[0]) => {
     setSheetData(template.data);
@@ -292,10 +327,45 @@ export default function SpreadsheetPage() {
 
         {/* Spreadsheet Container */}
         <div className="fortune-sheet-container h-[calc(100%-120px)] bg-white">
-          <Workbook
-            data={sheetData}
-            onChange={(data: any) => setSheetData(data)}
-          />
+          {spreadsheetError ? (
+            <div className="flex flex-col items-center justify-center h-full p-8">
+              <div className="text-red-600 text-xl mb-4">⚠️ Spreadsheet Error</div>
+              <div className="text-gray-700 mb-4 text-center max-w-md">
+                {spreadsheetError}
+              </div>
+              <button
+                onClick={() => {
+                  setSpreadsheetError(null);
+                  window.location.reload();
+                }}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                Reload Page
+              </button>
+            </div>
+          ) : (
+            <ErrorBoundary
+              fallback={
+                <div className="flex flex-col items-center justify-center h-full p-8">
+                  <div className="text-red-600 text-xl mb-4">⚠️ Spreadsheet Failed to Load</div>
+                  <div className="text-gray-700 mb-4 text-center max-w-md">
+                    The spreadsheet component encountered an error. This might be due to browser compatibility issues.
+                  </div>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                  >
+                    Reload Page
+                  </button>
+                </div>
+              }
+            >
+              <Workbook
+                data={sheetData}
+                onChange={(data: any) => setSheetData(data)}
+              />
+            </ErrorBoundary>
+          )}
         </div>
       </div>
     </>

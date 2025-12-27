@@ -18,6 +18,7 @@ const spreadsheetTemplates = [
     data: [
       {
         name: 'Student Grades',
+        config: {},
         celldata: [
           { r: 0, c: 0, v: { v: 'Student ID', m: 'Student ID', ct: { fa: 'General', t: 'g' } } },
           { r: 0, c: 1, v: { v: 'Name', m: 'Name', ct: { fa: 'General', t: 'g' } } },
@@ -55,6 +56,7 @@ const spreadsheetTemplates = [
     data: [
       {
         name: 'Sales Data',
+        config: {},
         celldata: [
           { r: 0, c: 0, v: { v: 'Month', m: 'Month' } },
           { r: 0, c: 1, v: { v: 'Sales', m: 'Sales' } },
@@ -83,6 +85,7 @@ const spreadsheetTemplates = [
     data: [
       {
         name: 'Inventory',
+        config: {},
         celldata: [
           { r: 0, c: 0, v: { v: 'Product', m: 'Product' } },
           { r: 0, c: 1, v: { v: 'Category', m: 'Category' } },
@@ -115,6 +118,7 @@ const spreadsheetTemplates = [
     data: [
       {
         name: 'Text Processing',
+        config: {},
         celldata: [
           { r: 0, c: 0, v: { v: 'Full Name', m: 'Full Name' } },
           { r: 0, c: 1, v: { v: 'First Name', m: 'First Name' } },
@@ -147,12 +151,7 @@ export default function SpreadsheetPage() {
   const [showHelp, setShowHelp] = useState(false);
 
   const loadTemplate = (template: typeof spreadsheetTemplates[0]) => {
-    // Add config property to each sheet if missing
-    const dataWithConfig = template.data.map(sheet => ({
-      ...sheet,
-      config: sheet.config || {}
-    }));
-    setSheetData(dataWithConfig);
+    setSheetData(template.data);
     setShowTemplates(false);
     toast.success(`Loaded: ${template.name}`);
   };

@@ -15,6 +15,13 @@ interface CellData {
 
 type SheetData = Record<string, CellData>;
 
+interface Selection {
+  startRow: number;
+  startCol: number;
+  endRow: number;
+  endCol: number;
+}
+
 // ============================================
 // FORMULA EVALUATION ENGINE - 7155 SYLLABUS
 // ============================================
@@ -78,6 +85,22 @@ const getRangeNumericValues = (range: string, data: SheetData, visited: Set<stri
     .map(v => parseFloat(v));
 };
 
+// Adjust cell references in formula when copying
+const adjustFormula = (formula: string, rowDelta: number, colDelta: number): string => {
+  if (!formula.startsWith('=')) return formula;
+  
+  return formula.replace(/([A-Z]+)(\d+)/g, (match, col, row) => {
+    const colIndex = col.charCodeAt(0) - 65 + colDelta;
+    const rowIndex = parseInt(row) - 1 + rowDelta;
+    
+    if (colIndex < 0 || colIndex >= COLS || rowIndex < 0 || rowIndex >= ROWS) {
+      return match; // Keep original if out of bounds
+    }
+    
+    return `${String.fromCharCode(65 + colIndex)}${rowIndex + 1}`;
+  });
+};
+
 // Main formula evaluator
 const evaluateFormula = (formula: string, data: SheetData, visited: Set<string> = new Set()): string => {
   if (!formula.startsWith('=')) return formula;
@@ -112,11 +135,9 @@ const evaluateFormula = (formula: string, data: SheetData, visited: Set<string> 
       const trueVal = ifMatch[2].trim();
       const falseVal = ifMatch[3].trim();
       const result = condition ? trueVal : falseVal;
-      // If result is a cell reference, get its value
       if (parseCellRef(result.toUpperCase())) {
         return getCellValue(result.toUpperCase(), data, visited);
       }
-      // If quoted string, remove quotes
       if ((result.startsWith('"') && result.endsWith('"')) || (result.startsWith("'") && result.endsWith("'"))) {
         return result.slice(1, -1);
       }
@@ -517,11 +538,9 @@ const evaluateFormula = (formula: string, data: SheetData, visited: Set<string> 
       const values = getRangeValues(matchMatch[2].toUpperCase(), data, visited);
       
       if (matchType === 0) {
-        // Exact match
         const idx = values.findIndex(v => v === lookupVal);
         return idx >= 0 ? String(idx + 1) : '#N/A';
       }
-      // For simplicity, return exact match position
       const idx = values.findIndex(v => v === lookupVal);
       return idx >= 0 ? String(idx + 1) : '#N/A';
     }
@@ -581,7 +600,6 @@ const resolveValue = (val: string, data: SheetData, visited: Set<string>): strin
 const evaluateCondition = (cond: string, data: SheetData, visited: Set<string>): boolean => {
   const trimmed = cond.trim();
   
-  // Check for comparison operators
   const compMatch = trimmed.match(/^(.+?)\s*(>=|<=|<>|>|<|=)\s*(.+)$/);
   if (compMatch) {
     const left = resolveValue(compMatch[1], data, visited);
@@ -602,18 +620,15 @@ const evaluateCondition = (cond: string, data: SheetData, visited: Set<string>):
     }
   }
   
-  // Boolean values
   if (trimmed.toUpperCase() === 'TRUE') return true;
   if (trimmed.toUpperCase() === 'FALSE') return false;
   
-  // Cell reference
   const val = resolveValue(trimmed, data, visited);
   return val !== '' && val !== '0' && val.toUpperCase() !== 'FALSE';
 };
 
-// Helper: check if value matches criteria (for SUMIF, COUNTIF, etc.)
+// Helper: check if value matches criteria
 const matchesCriteria = (value: string, criteria: string): boolean => {
-  // Comparison criteria
   if (criteria.startsWith('>=')) return parseFloat(value) >= parseFloat(criteria.slice(2));
   if (criteria.startsWith('<=')) return parseFloat(value) <= parseFloat(criteria.slice(2));
   if (criteria.startsWith('<>')) return value !== criteria.slice(2);
@@ -621,17 +636,15 @@ const matchesCriteria = (value: string, criteria: string): boolean => {
   if (criteria.startsWith('<')) return parseFloat(value) < parseFloat(criteria.slice(1));
   if (criteria.startsWith('=')) return value === criteria.slice(1);
   
-  // Wildcard support (* and ?)
   if (criteria.includes('*') || criteria.includes('?')) {
     const regex = new RegExp('^' + criteria.replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i');
     return regex.test(value);
   }
   
-  // Exact match
   return value.toLowerCase() === criteria.toLowerCase();
 };
 
-// Helper: split function arguments (respecting nested parentheses)
+// Helper: split function arguments
 const splitArgs = (str: string): string[] => {
   const args: string[] = [];
   let depth = 0;
@@ -676,35 +689,30 @@ const spreadsheetTemplates: { name: string; description: string; category: strin
   },
   {
     name: 'Conditional Functions',
-    description: 'IF, AND, OR, NOT with conditions',
+    description: 'IF, AND, OR, NOT',
     category: 'Logical',
     data: {
       'A1': { value: 'Student' }, 'B1': { value: 'Score' }, 'C1': { value: 'Pass?' }, 'D1': { value: 'Grade' },
       'A2': { value: 'Alice' }, 'B2': { value: '85' }, 'C2': { value: '=IF(B2>=50,"Pass","Fail")' }, 'D2': { value: '=IF(B2>=80,"A",IF(B2>=60,"B","C"))' },
       'A3': { value: 'Bob' }, 'B3': { value: '42' }, 'C3': { value: '=IF(B3>=50,"Pass","Fail")' }, 'D3': { value: '=IF(B3>=80,"A",IF(B3>=60,"B","C"))' },
       'A4': { value: 'Charlie' }, 'B4': { value: '91' }, 'C4': { value: '=IF(B4>=50,"Pass","Fail")' }, 'D4': { value: '=IF(B4>=80,"A",IF(B4>=60,"B","C"))' },
-      'F1': { value: 'Logic Tests' },
-      'F2': { value: '=AND(B2>80,B4>80)' }, 'G2': { value: 'Both A & C > 80?' },
-      'F3': { value: '=OR(B2>90,B4>90)' }, 'G3': { value: 'Any > 90?' },
-      'F4': { value: '=NOT(B3<50)' }, 'G4': { value: 'Bob NOT fail?' },
     },
   },
   {
-    name: 'COUNTIF & SUMIF',
-    description: 'Conditional counting and summing',
-    category: 'Statistical',
+    name: 'Drag Fill Demo',
+    description: 'Try dragging the blue handle to copy formulas',
+    category: 'Practice',
     data: {
-      'A1': { value: 'Product' }, 'B1': { value: 'Category' }, 'C1': { value: 'Sales' },
-      'A2': { value: 'Laptop' }, 'B2': { value: 'Electronics' }, 'C2': { value: '1200' },
-      'A3': { value: 'Phone' }, 'B3': { value: 'Electronics' }, 'C3': { value: '800' },
-      'A4': { value: 'Desk' }, 'B4': { value: 'Furniture' }, 'C4': { value: '300' },
-      'A5': { value: 'Chair' }, 'B5': { value: 'Furniture' }, 'C5': { value: '150' },
-      'A6': { value: 'Tablet' }, 'B6': { value: 'Electronics' }, 'C6': { value: '500' },
-      'E1': { value: 'Analysis' },
-      'E2': { value: 'Electronics Count:' }, 'F2': { value: '=COUNTIF(B2:B6,"Electronics")' },
-      'E3': { value: 'Furniture Sum:' }, 'F3': { value: '=SUMIF(B2:B6,"Furniture",C2:C6)' },
-      'E4': { value: 'Sales > 500:' }, 'F4': { value: '=COUNTIF(C2:C6,">500")' },
-      'E5': { value: 'Sum if > 300:' }, 'F5': { value: '=SUMIF(C2:C6,">300")' },
+      'A1': { value: 'Number' }, 'B1': { value: 'Square' }, 'C1': { value: 'Double' },
+      'A2': { value: '1' }, 'B2': { value: '=A2^2' }, 'C2': { value: '=A2*2' },
+      'A3': { value: '2' },
+      'A4': { value: '3' },
+      'A5': { value: '4' },
+      'A6': { value: '5' },
+      'E2': { value: 'Try this:' },
+      'E3': { value: '1. Select B2' },
+      'E4': { value: '2. Drag blue square down to B6' },
+      'E5': { value: '3. Formulas auto-adjust!' },
     },
   },
   {
@@ -716,175 +724,44 @@ const spreadsheetTemplates: { name: string; description: string; category: strin
       'A2': { value: '101' }, 'B2': { value: 'Alice' }, 'C2': { value: 'IT' }, 'D2': { value: '5000' },
       'A3': { value: '102' }, 'B3': { value: 'Bob' }, 'C3': { value: 'HR' }, 'D3': { value: '4500' },
       'A4': { value: '103' }, 'B4': { value: 'Charlie' }, 'C4': { value: 'IT' }, 'D4': { value: '5500' },
-      'A5': { value: '104' }, 'B5': { value: 'Diana' }, 'C5': { value: 'Sales' }, 'D5': { value: '4800' },
       'F1': { value: 'Lookup ID:' }, 'G1': { value: '102' },
-      'F2': { value: 'Name:' }, 'G2': { value: '=VLOOKUP(G1,A2:D5,2,FALSE)' },
-      'F3': { value: 'Dept:' }, 'G3': { value: '=VLOOKUP(G1,A2:D5,3,FALSE)' },
-      'F4': { value: 'Salary:' }, 'G4': { value: '=VLOOKUP(G1,A2:D5,4,FALSE)' },
-    },
-  },
-  {
-    name: 'INDEX & MATCH',
-    description: 'Advanced lookup with INDEX/MATCH',
-    category: 'Lookup',
-    data: {
-      'A1': { value: 'Product' }, 'B1': { value: 'Q1' }, 'C1': { value: 'Q2' }, 'D1': { value: 'Q3' }, 'E1': { value: 'Q4' },
-      'A2': { value: 'Laptop' }, 'B2': { value: '100' }, 'C2': { value: '120' }, 'D2': { value: '110' }, 'E2': { value: '150' },
-      'A3': { value: 'Phone' }, 'B3': { value: '200' }, 'C3': { value: '180' }, 'D3': { value: '220' }, 'E3': { value: '250' },
-      'A4': { value: 'Tablet' }, 'B4': { value: '80' }, 'C4': { value: '90' }, 'D4': { value: '85' }, 'E4': { value: '100' },
-      'G1': { value: 'Find Product:' }, 'H1': { value: 'Phone' },
-      'G2': { value: 'Quarter:' }, 'H2': { value: 'Q3' },
-      'G3': { value: 'Sales:' }, 'H3': { value: '=INDEX(B2:E4,MATCH(H1,A2:A4,0),MATCH(H2,B1:E1,0))' },
+      'F2': { value: 'Name:' }, 'G2': { value: '=VLOOKUP(G1,A2:D4,2,FALSE)' },
+      'F3': { value: 'Salary:' }, 'G3': { value: '=VLOOKUP(G1,A2:D4,4,FALSE)' },
     },
   },
   {
     name: 'Text Functions',
-    description: 'LEFT, RIGHT, MID, LEN, CONCAT, FIND',
+    description: 'LEFT, RIGHT, MID, LEN, CONCAT',
     category: 'Text',
     data: {
-      'A1': { value: 'Full Name' }, 'B1': { value: 'Email' },
-      'A2': { value: 'John Smith' }, 'B2': { value: 'john.smith@email.com' },
-      'A3': { value: 'Jane Doe' }, 'B3': { value: 'jane.doe@email.com' },
-      'D1': { value: 'Function' }, 'E1': { value: 'Result' },
-      'D2': { value: 'First 4 chars:' }, 'E2': { value: '=LEFT(A2,4)' },
-      'D3': { value: 'Last 3 chars:' }, 'E3': { value: '=RIGHT(A2,3)' },
-      'D4': { value: 'Middle (6,5):' }, 'E4': { value: '=MID(A2,6,5)' },
-      'D5': { value: 'Length:' }, 'E5': { value: '=LEN(A2)' },
-      'D6': { value: 'Concat:' }, 'E6': { value: '=CONCAT(A2," - ",B2)' },
-      'D7': { value: 'Find @:' }, 'E7': { value: '=FIND("@",B2)' },
-    },
-  },
-  {
-    name: 'Math Functions',
-    description: 'ROUND, MOD, POWER, SQRT, QUOTIENT',
-    category: 'Mathematical',
-    data: {
-      'A1': { value: 'Value' }, 'B1': { value: '123.456' },
-      'A3': { value: 'Function' }, 'B3': { value: 'Result' },
-      'A4': { value: 'ROUND(B1,2)' }, 'B4': { value: '=ROUND(B1,2)' },
-      'A5': { value: 'ROUND(B1,0)' }, 'B5': { value: '=ROUND(B1,0)' },
-      'A6': { value: 'CEILING.MATH(B1)' }, 'B6': { value: '=CEILING.MATH(B1)' },
-      'A7': { value: 'FLOOR.MATH(B1)' }, 'B7': { value: '=FLOOR.MATH(B1)' },
-      'A8': { value: 'MOD(17,5)' }, 'B8': { value: '=MOD(17,5)' },
-      'A9': { value: 'POWER(2,8)' }, 'B9': { value: '=POWER(2,8)' },
-      'A10': { value: 'SQRT(144)' }, 'B10': { value: '=SQRT(144)' },
-      'A11': { value: 'QUOTIENT(17,5)' }, 'B11': { value: '=QUOTIENT(17,5)' },
-    },
-  },
-  {
-    name: 'LARGE & SMALL & RANK',
-    description: 'Finding nth largest/smallest and ranking',
-    category: 'Statistical',
-    data: {
-      'A1': { value: 'Student' }, 'B1': { value: 'Score' },
-      'A2': { value: 'Alice' }, 'B2': { value: '85' },
-      'A3': { value: 'Bob' }, 'B3': { value: '72' },
-      'A4': { value: 'Charlie' }, 'B4': { value: '91' },
-      'A5': { value: 'Diana' }, 'B5': { value: '68' },
-      'A6': { value: 'Eve' }, 'B6': { value: '95' },
-      'D1': { value: 'Analysis' },
-      'D2': { value: '1st Highest:' }, 'E2': { value: '=LARGE(B2:B6,1)' },
-      'D3': { value: '2nd Highest:' }, 'E3': { value: '=LARGE(B2:B6,2)' },
-      'D4': { value: '1st Lowest:' }, 'E4': { value: '=SMALL(B2:B6,1)' },
-      'D5': { value: "Alice's Rank:" }, 'E5': { value: '=RANK.EQ(B2,B2:B6)' },
-      'D6': { value: "Eve's Rank:" }, 'E6': { value: '=RANK.EQ(B6,B2:B6)' },
-    },
-  },
-  {
-    name: 'Date Functions',
-    description: 'TODAY, NOW, DAYS calculations',
-    category: 'Date/Time',
-    data: {
-      'A1': { value: 'Today:' }, 'B1': { value: '=TODAY()' },
-      'A2': { value: 'Now:' }, 'B2': { value: '=NOW()' },
-      'A4': { value: 'Project' }, 'B4': { value: 'Start' }, 'C4': { value: 'End' }, 'D4': { value: 'Days' },
-      'A5': { value: 'Task 1' }, 'B5': { value: '2024-01-01' }, 'C5': { value: '2024-01-15' }, 'D5': { value: '=DAYS(C5,B5)' },
-      'A6': { value: 'Task 2' }, 'B6': { value: '2024-02-01' }, 'C6': { value: '2024-03-01' }, 'D6': { value: '=DAYS(C6,B6)' },
-    },
-  },
-  {
-    name: 'Operators Practice',
-    description: 'Arithmetic, comparison, and concatenation',
-    category: 'Operators',
-    data: {
-      'A1': { value: 'A' }, 'B1': { value: '10' },
-      'A2': { value: 'B' }, 'B2': { value: '3' },
-      'D1': { value: 'Operation' }, 'E1': { value: 'Formula' }, 'F1': { value: 'Result' },
-      'D2': { value: 'Add' }, 'E2': { value: '=B1+B2' }, 'F2': { value: '=B1+B2' },
-      'D3': { value: 'Subtract' }, 'E3': { value: '=B1-B2' }, 'F3': { value: '=B1-B2' },
-      'D4': { value: 'Multiply' }, 'E4': { value: '=B1*B2' }, 'F4': { value: '=B1*B2' },
-      'D5': { value: 'Divide' }, 'E5': { value: '=B1/B2' }, 'F5': { value: '=B1/B2' },
-      'D6': { value: 'Power (^)' }, 'E6': { value: '=B1^B2' }, 'F6': { value: '=B1^B2' },
-      'D7': { value: 'Percent' }, 'E7': { value: '=B1%' }, 'F7': { value: '=B1%' },
-      'D8': { value: 'Concat (&)' }, 'E8': { value: '=A1&" + "&A2' }, 'F8': { value: '=A1&" + "&A2' },
+      'A1': { value: 'Full Name' },
+      'A2': { value: 'John Smith' },
+      'C1': { value: 'Function' }, 'D1': { value: 'Result' },
+      'C2': { value: 'LEFT(A2,4)' }, 'D2': { value: '=LEFT(A2,4)' },
+      'C3': { value: 'RIGHT(A2,5)' }, 'D3': { value: '=RIGHT(A2,5)' },
+      'C4': { value: 'MID(A2,6,5)' }, 'D4': { value: '=MID(A2,6,5)' },
+      'C5': { value: 'LEN(A2)' }, 'D5': { value: '=LEN(A2)' },
     },
   },
 ];
-
-// ============================================
-// CELL COMPONENT
-// ============================================
-interface CellProps {
-  cellId: string;
-  value: string;
-  displayValue: string;
-  isSelected: boolean;
-  isEditing: boolean;
-  onSelect: () => void;
-  onDoubleClick: () => void;
-  onChange: (value: string) => void;
-  onKeyDown: (e: React.KeyboardEvent) => void;
-  onBlur: () => void;
-}
-
-function Cell({ cellId, value, displayValue, isSelected, isEditing, onSelect, onDoubleClick, onChange, onKeyDown, onBlur }: CellProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const isError = displayValue.startsWith('#');
-
-  return (
-    <td
-      className={`border border-slate-200 min-w-[80px] h-[32px] p-0 relative ${
-        isSelected ? 'outline outline-2 outline-blue-500 outline-offset-[-1px] bg-blue-50' : 'bg-white'
-      }`}
-      onClick={onSelect}
-      onDoubleClick={onDoubleClick}
-    >
-      {isEditing ? (
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          onBlur={onBlur}
-          className="w-full h-full px-2 text-sm border-none outline-none bg-white"
-        />
-      ) : (
-        <div className={`w-full h-full px-2 text-sm flex items-center truncate ${isError ? 'text-red-500 font-medium' : ''}`}>
-          {displayValue}
-        </div>
-      )}
-    </td>
-  );
-}
 
 // ============================================
 // MAIN PAGE COMPONENT
 // ============================================
 export default function SpreadsheetPage() {
   const [data, setData] = useState<SheetData>({});
-  const [selectedCell, setSelectedCell] = useState<string | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  
+  // Drag states
+  const [isDragging, setIsDragging] = useState(false);
+  const [isFillDragging, setIsFillDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ row: number; col: number } | null>(null);
+  const [fillPreview, setFillPreview] = useState<Selection | null>(null);
+  
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const displayValues = useMemo(() => {
     const result: Record<string, string> = {};
@@ -895,55 +772,266 @@ export default function SpreadsheetPage() {
     return result;
   }, [data]);
 
-  const handleCellSelect = useCallback((cellId: string) => {
-    if (editingCell && editingCell !== cellId) setEditingCell(null);
-    setSelectedCell(cellId);
+  // Get normalized selection bounds
+  const getSelectionBounds = useCallback((sel: Selection) => {
+    return {
+      minRow: Math.min(sel.startRow, sel.endRow),
+      maxRow: Math.max(sel.startRow, sel.endRow),
+      minCol: Math.min(sel.startCol, sel.endCol),
+      maxCol: Math.max(sel.startCol, sel.endCol),
+    };
+  }, []);
+
+  // Check if cell is in selection
+  const isCellInSelection = useCallback((row: number, col: number, sel: Selection | null) => {
+    if (!sel) return false;
+    const bounds = getSelectionBounds(sel);
+    return row >= bounds.minRow && row <= bounds.maxRow && col >= bounds.minCol && col <= bounds.maxCol;
+  }, [getSelectionBounds]);
+
+  // Handle mouse down on cell
+  const handleCellMouseDown = useCallback((row: number, col: number, e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only left click
+    
+    if (editingCell) {
+      setEditingCell(null);
+    }
+    
+    setIsDragging(true);
+    setDragStart({ row, col });
+    setSelection({ startRow: row, startCol: col, endRow: row, endCol: col });
   }, [editingCell]);
+
+  // Handle mouse enter on cell during drag
+  const handleCellMouseEnter = useCallback((row: number, col: number) => {
+    if (isDragging && dragStart) {
+      setSelection({
+        startRow: dragStart.row,
+        startCol: dragStart.col,
+        endRow: row,
+        endCol: col,
+      });
+    }
+    if (isFillDragging && selection) {
+      const bounds = getSelectionBounds(selection);
+      // Determine fill direction based on position relative to selection
+      if (row > bounds.maxRow) {
+        setFillPreview({ startRow: bounds.maxRow + 1, startCol: bounds.minCol, endRow: row, endCol: bounds.maxCol });
+      } else if (row < bounds.minRow) {
+        setFillPreview({ startRow: row, startCol: bounds.minCol, endRow: bounds.minRow - 1, endCol: bounds.maxCol });
+      } else if (col > bounds.maxCol) {
+        setFillPreview({ startRow: bounds.minRow, startCol: bounds.maxCol + 1, endRow: bounds.maxRow, endCol: col });
+      } else if (col < bounds.minCol) {
+        setFillPreview({ startRow: bounds.minRow, startCol: col, endRow: bounds.maxRow, endCol: bounds.minCol - 1 });
+      }
+    }
+  }, [isDragging, isFillDragging, dragStart, selection, getSelectionBounds]);
+
+  // Handle mouse up
+  const handleMouseUp = useCallback(() => {
+    if (isFillDragging && fillPreview && selection) {
+      // Perform fill operation
+      const sourceBounds = getSelectionBounds(selection);
+      const fillBounds = getSelectionBounds(fillPreview);
+      
+      setData(prev => {
+        const newData = { ...prev };
+        
+        // Determine if filling vertically or horizontally
+        const fillingDown = fillBounds.minRow > sourceBounds.maxRow;
+        const fillingUp = fillBounds.maxRow < sourceBounds.minRow;
+        const fillingRight = fillBounds.minCol > sourceBounds.maxCol;
+        const fillingLeft = fillBounds.maxCol < sourceBounds.minCol;
+        
+        if (fillingDown || fillingUp) {
+          // Vertical fill
+          for (let col = sourceBounds.minCol; col <= sourceBounds.maxCol; col++) {
+            const sourceCol = col;
+            let sourceRowIdx = 0;
+            const sourceRows = sourceBounds.maxRow - sourceBounds.minRow + 1;
+            
+            for (let row = fillBounds.minRow; row <= fillBounds.maxRow; row++) {
+              const sourceRow = sourceBounds.minRow + (sourceRowIdx % sourceRows);
+              const sourceId = getCellId(sourceRow, sourceCol);
+              const targetId = getCellId(row, col);
+              const sourceValue = prev[sourceId]?.value || '';
+              
+              if (sourceValue) {
+                const rowDelta = row - sourceRow;
+                const adjustedValue = adjustFormula(sourceValue, rowDelta, 0);
+                newData[targetId] = { value: adjustedValue };
+              }
+              sourceRowIdx++;
+            }
+          }
+        } else if (fillingRight || fillingLeft) {
+          // Horizontal fill
+          for (let row = sourceBounds.minRow; row <= sourceBounds.maxRow; row++) {
+            const sourceRow = row;
+            let sourceColIdx = 0;
+            const sourceCols = sourceBounds.maxCol - sourceBounds.minCol + 1;
+            
+            for (let col = fillBounds.minCol; col <= fillBounds.maxCol; col++) {
+              const sourceCol = sourceBounds.minCol + (sourceColIdx % sourceCols);
+              const sourceId = getCellId(sourceRow, sourceCol);
+              const targetId = getCellId(row, col);
+              const sourceValue = prev[sourceId]?.value || '';
+              
+              if (sourceValue) {
+                const colDelta = col - sourceCol;
+                const adjustedValue = adjustFormula(sourceValue, 0, colDelta);
+                newData[targetId] = { value: adjustedValue };
+              }
+              sourceColIdx++;
+            }
+          }
+        }
+        
+        return newData;
+      });
+      
+      // Expand selection to include filled cells
+      setSelection({
+        startRow: Math.min(sourceBounds.minRow, fillBounds.minRow),
+        startCol: Math.min(sourceBounds.minCol, fillBounds.minCol),
+        endRow: Math.max(sourceBounds.maxRow, fillBounds.maxRow),
+        endCol: Math.max(sourceBounds.maxCol, fillBounds.maxCol),
+      });
+    }
+    
+    setIsDragging(false);
+    setIsFillDragging(false);
+    setDragStart(null);
+    setFillPreview(null);
+  }, [isFillDragging, fillPreview, selection, getSelectionBounds]);
+
+  // Handle fill handle mouse down
+  const handleFillHandleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsFillDragging(true);
+  }, []);
+
+  // Global mouse up listener
+  useEffect(() => {
+    const handleGlobalMouseUp = () => handleMouseUp();
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, [handleMouseUp]);
 
   const handleCellDoubleClick = useCallback((cellId: string) => {
     setEditingCell(cellId);
   }, []);
 
   const handleCellChange = useCallback((cellId: string, value: string) => {
-    setData((prev) => ({ ...prev, [cellId]: { value } }));
+    setData(prev => ({ ...prev, [cellId]: { value } }));
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent, row: number, col: number) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       setEditingCell(null);
-      if (row < ROWS - 1) setSelectedCell(getCellId(row + 1, col));
+      if (row < ROWS - 1) {
+        setSelection({ startRow: row + 1, startCol: col, endRow: row + 1, endCol: col });
+      }
     } else if (e.key === 'Tab') {
       e.preventDefault();
       setEditingCell(null);
-      if (col < COLS - 1) setSelectedCell(getCellId(row, col + 1));
+      if (col < COLS - 1) {
+        setSelection({ startRow: row, startCol: col + 1, endRow: row, endCol: col + 1 });
+      }
     } else if (e.key === 'Escape') {
       setEditingCell(null);
     }
   }, []);
 
   const handleGridKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!selectedCell || editingCell) return;
-    const pos = parseCellRef(selectedCell);
-    if (!pos) return;
-    const [row, col] = pos;
+    if (!selection || editingCell) return;
+    const bounds = getSelectionBounds(selection);
+    const row = bounds.minRow;
+    const col = bounds.minCol;
+    const cellId = getCellId(row, col);
 
-    if (e.key === 'ArrowUp' && row > 0) setSelectedCell(getCellId(row - 1, col));
-    else if (e.key === 'ArrowDown' && row < ROWS - 1) setSelectedCell(getCellId(row + 1, col));
-    else if (e.key === 'ArrowLeft' && col > 0) setSelectedCell(getCellId(row, col - 1));
-    else if (e.key === 'ArrowRight' && col < COLS - 1) setSelectedCell(getCellId(row, col + 1));
-    else if (e.key === 'Enter' || e.key === 'F2') setEditingCell(selectedCell);
-    else if (e.key === 'Delete' || e.key === 'Backspace') {
-      setData((prev) => { const next = { ...prev }; delete next[selectedCell]; return next; });
+    if (e.key === 'ArrowUp' && row > 0) {
+      setSelection({ startRow: row - 1, startCol: col, endRow: row - 1, endCol: col });
+    } else if (e.key === 'ArrowDown' && row < ROWS - 1) {
+      setSelection({ startRow: row + 1, startCol: col, endRow: row + 1, endCol: col });
+    } else if (e.key === 'ArrowLeft' && col > 0) {
+      setSelection({ startRow: row, startCol: col - 1, endRow: row, endCol: col - 1 });
+    } else if (e.key === 'ArrowRight' && col < COLS - 1) {
+      setSelection({ startRow: row, startCol: col + 1, endRow: row, endCol: col + 1 });
+    } else if (e.key === 'Enter' || e.key === 'F2') {
+      setEditingCell(cellId);
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      // Delete all selected cells
+      setData(prev => {
+        const newData = { ...prev };
+        for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
+          for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
+            delete newData[getCellId(r, c)];
+          }
+        }
+        return newData;
+      });
     } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-      setEditingCell(selectedCell);
-      setData((prev) => ({ ...prev, [selectedCell]: { value: e.key } }));
+      setEditingCell(cellId);
+      setData(prev => ({ ...prev, [cellId]: { value: e.key } }));
     }
-  }, [selectedCell, editingCell]);
+  }, [selection, editingCell, getSelectionBounds]);
+
+  // Copy/Paste support
+  useEffect(() => {
+    const handleCopy = (e: ClipboardEvent) => {
+      if (!selection || editingCell) return;
+      const bounds = getSelectionBounds(selection);
+      
+      let text = '';
+      for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
+        const rowData: string[] = [];
+        for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
+          rowData.push(displayValues[getCellId(r, c)] || '');
+        }
+        text += rowData.join('\t') + '\n';
+      }
+      
+      e.clipboardData?.setData('text/plain', text.trim());
+      e.preventDefault();
+    };
+    
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!selection || editingCell) return;
+      const bounds = getSelectionBounds(selection);
+      const text = e.clipboardData?.getData('text/plain') || '';
+      const rows = text.split('\n').map(r => r.split('\t'));
+      
+      setData(prev => {
+        const newData = { ...prev };
+        rows.forEach((row, rIdx) => {
+          row.forEach((cell, cIdx) => {
+            const targetRow = bounds.minRow + rIdx;
+            const targetCol = bounds.minCol + cIdx;
+            if (targetRow < ROWS && targetCol < COLS) {
+              newData[getCellId(targetRow, targetCol)] = { value: cell };
+            }
+          });
+        });
+        return newData;
+      });
+      
+      e.preventDefault();
+    };
+    
+    document.addEventListener('copy', handleCopy);
+    document.addEventListener('paste', handlePaste);
+    return () => {
+      document.removeEventListener('copy', handleCopy);
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, [selection, editingCell, displayValues, getSelectionBounds]);
 
   const loadTemplate = useCallback((template: typeof spreadsheetTemplates[0]) => {
     setData({ ...template.data });
-    setSelectedCell(null);
+    setSelection(null);
     setEditingCell(null);
     setShowTemplates(false);
     toast.success(`Loaded: ${template.name}`);
@@ -951,7 +1039,7 @@ export default function SpreadsheetPage() {
 
   const clearSheet = useCallback(() => {
     setData({});
-    setSelectedCell(null);
+    setSelection(null);
     setEditingCell(null);
     toast.success('Sheet cleared');
   }, []);
@@ -963,17 +1051,19 @@ export default function SpreadsheetPage() {
     } catch { toast.error('Failed to save'); }
   };
 
-  const selectedValue = selectedCell ? data[selectedCell]?.value || '' : '';
+  const selectedCellId = selection ? getCellId(Math.min(selection.startRow, selection.endRow), Math.min(selection.startCol, selection.endCol)) : null;
+  const selectedValue = selectedCellId ? data[selectedCellId]?.value || '' : '';
+  const selectionBounds = selection ? getSelectionBounds(selection) : null;
 
   return (
     <>
       <Head><title>Spreadsheet | Computing 7155 Portal</title></Head>
-      <div className="h-[calc(100vh-100px)]">
+      <div className="h-[calc(100vh-100px)] select-none">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3">
           <div>
             <h1 className="text-2xl font-bold text-white">📊 Spreadsheet</h1>
-            <p className="text-slate-400 text-sm">Module 3 - All 7155 Syllabus Functions</p>
+            <p className="text-slate-400 text-sm">Module 3 - Drag cells to fill, click+drag to select</p>
           </div>
           <div className="flex items-center space-x-2 mt-3 sm:mt-0">
             <div className="relative">
@@ -981,7 +1071,7 @@ export default function SpreadsheetPage() {
                 Templates <FiChevronDown className="ml-1" />
               </button>
               {showTemplates && (
-                <div className="absolute right-0 mt-2 w-80 bg-slate-800 rounded-lg shadow-xl border border-slate-700 z-50 max-h-96 overflow-y-auto">
+                <div className="absolute right-0 mt-2 w-72 bg-slate-800 rounded-lg shadow-xl border border-slate-700 z-50 max-h-80 overflow-y-auto">
                   {spreadsheetTemplates.map((t, i) => (
                     <button key={i} onClick={() => loadTemplate(t)} className="w-full text-left px-4 py-2 hover:bg-slate-700 first:rounded-t-lg last:rounded-b-lg border-b border-slate-700/50 last:border-0">
                       <div className="flex justify-between items-center">
@@ -1008,32 +1098,39 @@ export default function SpreadsheetPage() {
 
         {/* Formula Bar */}
         <div className="mb-2 flex items-center bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-          <div className="px-3 py-2 bg-slate-700 text-slate-300 font-mono text-sm min-w-[50px] text-center border-r border-slate-600">{selectedCell || '—'}</div>
-          <input type="text" value={selectedValue} onChange={(e) => selectedCell && handleCellChange(selectedCell, e.target.value)} onFocus={() => selectedCell && setEditingCell(selectedCell)} className="flex-1 px-3 py-2 bg-slate-800 text-white font-mono text-sm outline-none" placeholder="Select a cell..." />
+          <div className="px-3 py-2 bg-slate-700 text-slate-300 font-mono text-sm min-w-[50px] text-center border-r border-slate-600">
+            {selectionBounds ? `${getCellId(selectionBounds.minRow, selectionBounds.minCol)}${selectionBounds.minRow !== selectionBounds.maxRow || selectionBounds.minCol !== selectionBounds.maxCol ? ':' + getCellId(selectionBounds.maxRow, selectionBounds.maxCol) : ''}` : '—'}
+          </div>
+          <input type="text" value={selectedValue} onChange={(e) => selectedCellId && handleCellChange(selectedCellId, e.target.value)} onFocus={() => selectedCellId && setEditingCell(selectedCellId)} className="flex-1 px-3 py-2 bg-slate-800 text-white font-mono text-sm outline-none" placeholder="Select a cell..." />
         </div>
 
         {/* Help Panel */}
         {showHelp && (
-          <div className="mb-3 bg-slate-800/80 backdrop-blur rounded-xl border border-slate-700/50 p-3 max-h-48 overflow-y-auto text-xs">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              <div><h4 className="font-semibold text-emerald-400 mb-1">Logical</h4><p className="text-slate-400">IF, AND, OR, NOT</p></div>
-              <div><h4 className="font-semibold text-blue-400 mb-1">Math</h4><p className="text-slate-400">SUM, SUMIF, ROUND, MOD, POWER, SQRT, QUOTIENT, CEILING.MATH, FLOOR.MATH, RAND, RANDBETWEEN</p></div>
-              <div><h4 className="font-semibold text-purple-400 mb-1">Statistical</h4><p className="text-slate-400">AVERAGE, AVERAGEIF, COUNT, COUNTA, COUNTBLANK, COUNTIF, MIN, MAX, MEDIAN, MODE.SNGL, LARGE, SMALL, RANK.EQ</p></div>
-              <div><h4 className="font-semibold text-amber-400 mb-1">Text</h4><p className="text-slate-400">CONCAT, LEN, LEFT, RIGHT, MID, FIND, SEARCH</p></div>
-              <div><h4 className="font-semibold text-rose-400 mb-1">Lookup</h4><p className="text-slate-400">VLOOKUP, HLOOKUP, INDEX, MATCH</p></div>
-              <div><h4 className="font-semibold text-cyan-400 mb-1">Date</h4><p className="text-slate-400">TODAY, NOW, DAYS</p></div>
+          <div className="mb-3 bg-slate-800/80 backdrop-blur rounded-xl border border-slate-700/50 p-3 text-xs">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
+              <div><span className="text-emerald-400 font-semibold">Click+Drag:</span> <span className="text-slate-400">Select range</span></div>
+              <div><span className="text-blue-400 font-semibold">Blue Handle:</span> <span className="text-slate-400">Drag to fill/copy</span></div>
+              <div><span className="text-purple-400 font-semibold">Ctrl+C/V:</span> <span className="text-slate-400">Copy/Paste</span></div>
             </div>
-            <p className="mt-2 text-slate-500">Operators: + − * / % ^ = &gt; &gt;= &lt; &lt;= &lt;&gt; &amp; | Click cell → type to edit | Enter/Tab to confirm</p>
+            <p className="text-slate-500">Functions: SUM, AVERAGE, COUNT, IF, VLOOKUP, INDEX, MATCH, LEFT, RIGHT, MID, and more!</p>
           </div>
         )}
 
         {/* Spreadsheet Grid */}
-        <div className="bg-white rounded-xl overflow-auto shadow-lg" style={{ height: showHelp ? 'calc(100% - 190px)' : 'calc(100% - 110px)' }} tabIndex={0} onKeyDown={handleGridKeyDown}>
+        <div 
+          ref={gridRef}
+          className="bg-white rounded-xl overflow-auto shadow-lg relative" 
+          style={{ height: showHelp ? 'calc(100% - 170px)' : 'calc(100% - 110px)' }} 
+          tabIndex={0} 
+          onKeyDown={handleGridKeyDown}
+        >
           <table className="border-collapse w-full">
-            <thead className="sticky top-0 z-10">
+            <thead className="sticky top-0 z-20">
               <tr>
                 <th className="bg-slate-100 border border-slate-200 w-[40px] h-[28px] text-xs font-semibold text-slate-500"></th>
-                {COL_LABELS.map((l) => (<th key={l} className="bg-slate-100 border border-slate-200 min-w-[80px] h-[28px] text-xs font-semibold text-slate-600">{l}</th>))}
+                {COL_LABELS.map((l) => (
+                  <th key={l} className="bg-slate-100 border border-slate-200 min-w-[80px] h-[28px] text-xs font-semibold text-slate-600">{l}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -1042,9 +1139,55 @@ export default function SpreadsheetPage() {
                   <td className="bg-slate-100 border border-slate-200 text-center text-xs font-semibold text-slate-500 sticky left-0 z-10">{row + 1}</td>
                   {Array.from({ length: COLS }, (_, col) => {
                     const cellId = getCellId(row, col);
+                    const isInSelection = isCellInSelection(row, col, selection);
+                    const isInFillPreview = isCellInSelection(row, col, fillPreview);
+                    const isActiveCell = selection && row === Math.min(selection.startRow, selection.endRow) && col === Math.min(selection.startCol, selection.endCol);
+                    const isEditing = editingCell === cellId;
+                    const cellValue = data[cellId]?.value || '';
+                    const displayValue = displayValues[cellId] || '';
+                    const isError = displayValue.startsWith('#');
+                    
+                    // Check if this is the bottom-right cell of selection (for fill handle)
+                    const showFillHandle = selectionBounds && 
+                      row === selectionBounds.maxRow && 
+                      col === selectionBounds.maxCol && 
+                      !isEditing;
+
                     return (
-                      <Cell key={cellId} cellId={cellId} value={data[cellId]?.value || ''} displayValue={displayValues[cellId] || ''} isSelected={selectedCell === cellId} isEditing={editingCell === cellId}
-                        onSelect={() => handleCellSelect(cellId)} onDoubleClick={() => handleCellDoubleClick(cellId)} onChange={(v) => handleCellChange(cellId, v)} onKeyDown={(e) => handleKeyDown(e, row, col)} onBlur={() => setEditingCell(null)} />
+                      <td
+                        key={cellId}
+                        className={`border border-slate-200 min-w-[80px] h-[32px] p-0 relative
+                          ${isInFillPreview ? 'bg-blue-100 border-blue-300' : ''}
+                          ${isInSelection && !isInFillPreview ? 'bg-blue-50' : 'bg-white'}
+                          ${isActiveCell ? 'outline outline-2 outline-blue-500 outline-offset-[-1px]' : ''}
+                        `}
+                        onMouseDown={(e) => handleCellMouseDown(row, col, e)}
+                        onMouseEnter={() => handleCellMouseEnter(row, col)}
+                        onDoubleClick={() => handleCellDoubleClick(cellId)}
+                      >
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={cellValue}
+                            onChange={(e) => handleCellChange(cellId, e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, row, col)}
+                            onBlur={() => setEditingCell(null)}
+                            autoFocus
+                            className="w-full h-full px-2 text-sm border-none outline-none bg-white"
+                          />
+                        ) : (
+                          <div className={`w-full h-full px-2 text-sm flex items-center truncate ${isError ? 'text-red-500 font-medium' : ''}`}>
+                            {displayValue}
+                          </div>
+                        )}
+                        {showFillHandle && (
+                          <div
+                            className="absolute w-3 h-3 bg-blue-500 border border-white cursor-crosshair z-30"
+                            style={{ bottom: -2, right: -2 }}
+                            onMouseDown={handleFillHandleMouseDown}
+                          />
+                        )}
+                      </td>
                     );
                   })}
                 </tr>

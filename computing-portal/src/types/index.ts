@@ -7,6 +7,7 @@ export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 declare module 'next-auth' {
   interface User {
     id: string;
+    username: string;
     profile: UserProfile;
     school?: string;
     schoolId?: string;

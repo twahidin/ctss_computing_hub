@@ -1,197 +1,156 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Head from 'next/head';
-import dynamic from 'next/dynamic';
-import { FiSave, FiHelpCircle, FiChevronDown, FiAlertCircle } from 'react-icons/fi';
+import { FiSave, FiHelpCircle, FiChevronDown, FiRefreshCw } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import SimpleSpreadsheet from '@/components/SimpleSpreadsheet';
 
-// Dynamically import FortuneSheet to avoid SSR issues
-const Workbook = dynamic(
-  () => import('@fortune-sheet/react').then((mod) => mod.Workbook),
-  { 
-    ssr: false,
-    loading: () => (
-      <div className="flex items-center justify-center h-full bg-slate-800/50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
-          <p className="text-slate-400">Loading spreadsheet...</p>
-        </div>
-      </div>
-    ),
+// Helper to convert column number to letter
+const colToLetter = (col: number): string => {
+  let letter = '';
+  let temp = col;
+  while (temp >= 0) {
+    letter = String.fromCharCode((temp % 26) + 65) + letter;
+    temp = Math.floor(temp / 26) - 1;
   }
-);
+  return letter;
+};
 
 // Sample data templates for 7155 syllabus exercises
 const spreadsheetTemplates = [
   {
     name: 'VLOOKUP Practice',
     description: 'Practice using VLOOKUP for exact matching',
-    data: [
-      {
-        name: 'Student Grades',
-        celldata: [
-          { r: 0, c: 0, v: { v: 'Student ID', m: 'Student ID', ct: { fa: 'General', t: 'g' } } },
-          { r: 0, c: 1, v: { v: 'Name', m: 'Name', ct: { fa: 'General', t: 'g' } } },
-          { r: 0, c: 2, v: { v: 'Score', m: 'Score', ct: { fa: 'General', t: 'g' } } },
-          { r: 0, c: 3, v: { v: 'Grade', m: 'Grade', ct: { fa: 'General', t: 'g' } } },
-          { r: 1, c: 0, v: { v: 'S001', m: 'S001' } },
-          { r: 1, c: 1, v: { v: 'Alice', m: 'Alice' } },
-          { r: 1, c: 2, v: { v: 85, m: '85', ct: { fa: '0', t: 'n' } } },
-          { r: 2, c: 0, v: { v: 'S002', m: 'S002' } },
-          { r: 2, c: 1, v: { v: 'Bob', m: 'Bob' } },
-          { r: 2, c: 2, v: { v: 72, m: '72', ct: { fa: '0', t: 'n' } } },
-          { r: 2, c: 0, v: { v: 'S003', m: 'S003' } },
-          { r: 3, c: 1, v: { v: 'Charlie', m: 'Charlie' } },
-          { r: 3, c: 2, v: { v: 91, m: '91', ct: { fa: '0', t: 'n' } } },
-          // Grade lookup table
-          { r: 0, c: 5, v: { v: 'Min Score', m: 'Min Score', ct: { fa: 'General', t: 'g' } } },
-          { r: 0, c: 6, v: { v: 'Grade', m: 'Grade', ct: { fa: 'General', t: 'g' } } },
-          { r: 1, c: 5, v: { v: 0, m: '0', ct: { fa: '0', t: 'n' } } },
-          { r: 1, c: 6, v: { v: 'F', m: 'F' } },
-          { r: 2, c: 5, v: { v: 50, m: '50', ct: { fa: '0', t: 'n' } } },
-          { r: 2, c: 6, v: { v: 'D', m: 'D' } },
-          { r: 3, c: 5, v: { v: 60, m: '60', ct: { fa: '0', t: 'n' } } },
-          { r: 3, c: 6, v: { v: 'C', m: 'C' } },
-          { r: 4, c: 5, v: { v: 70, m: '70', ct: { fa: '0', t: 'n' } } },
-          { r: 4, c: 6, v: { v: 'B', m: 'B' } },
-          { r: 5, c: 5, v: { v: 80, m: '80', ct: { fa: '0', t: 'n' } } },
-          { r: 5, c: 6, v: { v: 'A', m: 'A' } },
-        ],
-      },
-    ],
+    data: {
+      'A1': { value: 'Student ID' },
+      'B1': { value: 'Name' },
+      'C1': { value: 'Score' },
+      'D1': { value: 'Grade' },
+      'A2': { value: 'S001' },
+      'B2': { value: 'Alice' },
+      'C2': { value: '85' },
+      'A3': { value: 'S002' },
+      'B3': { value: 'Bob' },
+      'C3': { value: '72' },
+      'A4': { value: 'S003' },
+      'B4': { value: 'Charlie' },
+      'C4': { value: '91' },
+      'F1': { value: 'Min Score' },
+      'G1': { value: 'Grade' },
+      'F2': { value: '0' },
+      'G2': { value: 'F' },
+      'F3': { value: '50' },
+      'G3': { value: 'D' },
+      'F4': { value: '60' },
+      'G4': { value: 'C' },
+      'F5': { value: '70' },
+      'G5': { value: 'B' },
+      'F6': { value: '80' },
+      'G6': { value: 'A' },
+    },
   },
   {
     name: 'Statistical Functions',
     description: 'Practice SUM, AVERAGE, COUNT, MIN, MAX',
-    data: [
-      {
-        name: 'Sales Data',
-        celldata: [
-          { r: 0, c: 0, v: { v: 'Month', m: 'Month' } },
-          { r: 0, c: 1, v: { v: 'Sales', m: 'Sales' } },
-          { r: 1, c: 0, v: { v: 'Jan', m: 'Jan' } },
-          { r: 1, c: 1, v: { v: 1500, m: '1500', ct: { fa: '0', t: 'n' } } },
-          { r: 2, c: 0, v: { v: 'Feb', m: 'Feb' } },
-          { r: 2, c: 1, v: { v: 2300, m: '2300', ct: { fa: '0', t: 'n' } } },
-          { r: 3, c: 0, v: { v: 'Mar', m: 'Mar' } },
-          { r: 3, c: 1, v: { v: 1800, m: '1800', ct: { fa: '0', t: 'n' } } },
-          { r: 4, c: 0, v: { v: 'Apr', m: 'Apr' } },
-          { r: 4, c: 1, v: { v: 2100, m: '2100', ct: { fa: '0', t: 'n' } } },
-          { r: 5, c: 0, v: { v: 'May', m: 'May' } },
-          { r: 5, c: 1, v: { v: 2800, m: '2800', ct: { fa: '0', t: 'n' } } },
-          { r: 7, c: 0, v: { v: 'Total:', m: 'Total:' } },
-          { r: 8, c: 0, v: { v: 'Average:', m: 'Average:' } },
-          { r: 9, c: 0, v: { v: 'Max:', m: 'Max:' } },
-          { r: 10, c: 0, v: { v: 'Min:', m: 'Min:' } },
-          { r: 11, c: 0, v: { v: 'Count:', m: 'Count:' } },
-        ],
-      },
-    ],
+    data: {
+      'A1': { value: 'Month' },
+      'B1': { value: 'Sales' },
+      'A2': { value: 'Jan' },
+      'B2': { value: '1500' },
+      'A3': { value: 'Feb' },
+      'B3': { value: '2300' },
+      'A4': { value: 'Mar' },
+      'B4': { value: '1800' },
+      'A5': { value: 'Apr' },
+      'B5': { value: '2100' },
+      'A6': { value: 'May' },
+      'B6': { value: '2800' },
+      'A8': { value: 'Total:' },
+      'B8': { value: '', formula: '=SUM(B2:B6)' },
+      'A9': { value: 'Average:' },
+      'B9': { value: '', formula: '=AVERAGE(B2:B6)' },
+      'A10': { value: 'Max:' },
+      'B10': { value: '', formula: '=MAX(B2:B6)' },
+      'A11': { value: 'Min:' },
+      'B11': { value: '', formula: '=MIN(B2:B6)' },
+      'A12': { value: 'Count:' },
+      'B12': { value: '', formula: '=COUNT(B2:B6)' },
+    },
   },
   {
-    name: 'Conditional Functions',
-    description: 'Practice IF, SUMIF, COUNTIF, AVERAGEIF',
-    data: [
-      {
-        name: 'Inventory',
-        celldata: [
-          { r: 0, c: 0, v: { v: 'Product', m: 'Product' } },
-          { r: 0, c: 1, v: { v: 'Category', m: 'Category' } },
-          { r: 0, c: 2, v: { v: 'Price', m: 'Price' } },
-          { r: 0, c: 3, v: { v: 'Stock', m: 'Stock' } },
-          { r: 0, c: 4, v: { v: 'Status', m: 'Status' } },
-          { r: 1, c: 0, v: { v: 'Laptop', m: 'Laptop' } },
-          { r: 1, c: 1, v: { v: 'Electronics', m: 'Electronics' } },
-          { r: 1, c: 2, v: { v: 1200, m: '1200', ct: { fa: '0', t: 'n' } } },
-          { r: 1, c: 3, v: { v: 15, m: '15', ct: { fa: '0', t: 'n' } } },
-          { r: 2, c: 0, v: { v: 'Mouse', m: 'Mouse' } },
-          { r: 2, c: 1, v: { v: 'Electronics', m: 'Electronics' } },
-          { r: 2, c: 2, v: { v: 25, m: '25', ct: { fa: '0', t: 'n' } } },
-          { r: 2, c: 3, v: { v: 50, m: '50', ct: { fa: '0', t: 'n' } } },
-          { r: 3, c: 0, v: { v: 'Desk', m: 'Desk' } },
-          { r: 3, c: 1, v: { v: 'Furniture', m: 'Furniture' } },
-          { r: 3, c: 2, v: { v: 300, m: '300', ct: { fa: '0', t: 'n' } } },
-          { r: 3, c: 3, v: { v: 8, m: '8', ct: { fa: '0', t: 'n' } } },
-          { r: 4, c: 0, v: { v: 'Chair', m: 'Chair' } },
-          { r: 4, c: 1, v: { v: 'Furniture', m: 'Furniture' } },
-          { r: 4, c: 2, v: { v: 150, m: '150', ct: { fa: '0', t: 'n' } } },
-          { r: 4, c: 3, v: { v: 20, m: '20', ct: { fa: '0', t: 'n' } } },
-        ],
-      },
-    ],
+    name: 'Simple Calculations',
+    description: 'Practice basic formulas and cell references',
+    data: {
+      'A1': { value: 'Item' },
+      'B1': { value: 'Qty' },
+      'C1': { value: 'Price' },
+      'D1': { value: 'Total' },
+      'A2': { value: 'Apples' },
+      'B2': { value: '10' },
+      'C2': { value: '1.50' },
+      'D2': { value: '', formula: '=B2*C2' },
+      'A3': { value: 'Oranges' },
+      'B3': { value: '8' },
+      'C3': { value: '2.00' },
+      'D3': { value: '', formula: '=B3*C3' },
+      'A4': { value: 'Bananas' },
+      'B4': { value: '12' },
+      'C4': { value: '0.75' },
+      'D4': { value: '', formula: '=B4*C4' },
+      'A6': { value: 'Grand Total:' },
+      'D6': { value: '', formula: '=SUM(D2:D4)' },
+    },
   },
   {
-    name: 'Text Functions',
-    description: 'Practice LEFT, RIGHT, MID, LEN, CONCAT',
-    data: [
-      {
-        name: 'Text Processing',
-        celldata: [
-          { r: 0, c: 0, v: { v: 'Full Name', m: 'Full Name' } },
-          { r: 0, c: 1, v: { v: 'First Name', m: 'First Name' } },
-          { r: 0, c: 2, v: { v: 'Last Name', m: 'Last Name' } },
-          { r: 0, c: 3, v: { v: 'Initials', m: 'Initials' } },
-          { r: 1, c: 0, v: { v: 'John Smith', m: 'John Smith' } },
-          { r: 2, c: 0, v: { v: 'Mary Johnson', m: 'Mary Johnson' } },
-          { r: 3, c: 0, v: { v: 'David Lee', m: 'David Lee' } },
-          { r: 5, c: 0, v: { v: 'Product Code', m: 'Product Code' } },
-          { r: 5, c: 1, v: { v: 'Category', m: 'Category' } },
-          { r: 5, c: 2, v: { v: 'Number', m: 'Number' } },
-          { r: 6, c: 0, v: { v: 'ELEC-001', m: 'ELEC-001' } },
-          { r: 7, c: 0, v: { v: 'FURN-042', m: 'FURN-042' } },
-          { r: 8, c: 0, v: { v: 'BOOK-123', m: 'BOOK-123' } },
-        ],
-      },
-    ],
+    name: 'Inventory Tracker',
+    description: 'Practice conditional logic and calculations',
+    data: {
+      'A1': { value: 'Product' },
+      'B1': { value: 'Category' },
+      'C1': { value: 'Price' },
+      'D1': { value: 'Stock' },
+      'A2': { value: 'Laptop' },
+      'B2': { value: 'Electronics' },
+      'C2': { value: '1200' },
+      'D2': { value: '15' },
+      'A3': { value: 'Mouse' },
+      'B3': { value: 'Electronics' },
+      'C3': { value: '25' },
+      'D3': { value: '50' },
+      'A4': { value: 'Desk' },
+      'B4': { value: 'Furniture' },
+      'C4': { value: '300' },
+      'D4': { value: '8' },
+      'A5': { value: 'Chair' },
+      'B5': { value: 'Furniture' },
+      'C5': { value: '150' },
+      'D5': { value: '20' },
+      'A7': { value: 'Total Stock:' },
+      'D7': { value: '', formula: '=SUM(D2:D5)' },
+      'A8': { value: 'Avg Price:' },
+      'C8': { value: '', formula: '=AVERAGE(C2:C5)' },
+    },
   },
 ];
 
-// Type definitions for spreadsheet cell data
-interface CellValue {
-  v: string | number;
-  m: string;
-  ct?: { fa: string; t: string };
-}
-
 interface CellData {
-  r: number;
-  c: number;
-  v: CellValue;
-}
-
-interface SheetData {
-  name: string;
-  celldata: CellData[];
-  config: Record<string, unknown>;
+  value: string;
+  formula?: string;
 }
 
 export default function SpreadsheetPage() {
-  const [sheetData, setSheetData] = useState<SheetData[]>([
-    {
-      name: 'Sheet1',
-      celldata: [],
-      config: {},
-    },
-  ]);
+  const [sheetData, setSheetData] = useState<Record<string, CellData>>({});
   const [showTemplates, setShowTemplates] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  const [isClient, setIsClient] = useState(false);
-
-  // Ensure we're on the client side
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   const loadTemplate = (template: typeof spreadsheetTemplates[0]) => {
-    // Add config property to each sheet if missing
-    const dataWithConfig: SheetData[] = template.data.map(sheet => ({
-      name: sheet.name,
-      celldata: sheet.celldata as CellData[],
-      config: {},
-    }));
-    setSheetData(dataWithConfig);
+    setSheetData(template.data);
     setShowTemplates(false);
     toast.success(`Loaded: ${template.name}`);
+  };
+
+  const clearSheet = () => {
+    setSheetData({});
+    toast.success('Sheet cleared');
   };
 
   const handleSave = async () => {
@@ -230,23 +189,23 @@ export default function SpreadsheetPage() {
             <div className="relative">
               <button
                 onClick={() => setShowTemplates(!showTemplates)}
-                className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                className="flex items-center px-4 py-2 bg-slate-700 text-slate-200 rounded-lg hover:bg-slate-600 transition-colors"
               >
                 Templates
                 <FiChevronDown className="ml-2" />
               </button>
               {showTemplates && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                <div className="absolute right-0 mt-2 w-72 bg-slate-800 rounded-lg shadow-lg border border-slate-700 z-10">
                   {spreadsheetTemplates.map((template, index) => (
                     <button
                       key={index}
                       onClick={() => loadTemplate(template)}
-                      className="w-full text-left px-4 py-3 hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg"
+                      className="w-full text-left px-4 py-3 hover:bg-slate-700 first:rounded-t-lg last:rounded-b-lg transition-colors"
                     >
-                      <div className="font-medium text-gray-900">
+                      <div className="font-medium text-white">
                         {template.name}
                       </div>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-slate-400">
                         {template.description}
                       </div>
                     </button>
@@ -255,10 +214,19 @@ export default function SpreadsheetPage() {
               )}
             </div>
 
+            {/* Clear Button */}
+            <button
+              onClick={clearSheet}
+              className="flex items-center px-4 py-2 bg-slate-700 text-slate-200 rounded-lg hover:bg-slate-600 transition-colors"
+            >
+              <FiRefreshCw className="mr-2" />
+              Clear
+            </button>
+
             {/* Help Button */}
             <button
               onClick={() => setShowHelp(!showHelp)}
-              className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="flex items-center px-4 py-2 bg-slate-700 text-slate-200 rounded-lg hover:bg-slate-600 transition-colors"
             >
               <FiHelpCircle className="mr-2" />
               Functions
@@ -267,7 +235,7 @@ export default function SpreadsheetPage() {
             {/* Save Button */}
             <button
               onClick={handleSave}
-              className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
             >
               <FiSave className="mr-2" />
               Save
@@ -277,96 +245,52 @@ export default function SpreadsheetPage() {
 
         {/* Help Panel */}
         {showHelp && (
-          <div className="mb-4 bg-white rounded-xl border border-gray-200 p-4 max-h-60 overflow-y-auto">
-            <h3 className="font-semibold text-gray-900 mb-3">
-              7155 Syllabus Functions
+          <div className="mb-4 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-4 max-h-60 overflow-y-auto">
+            <h3 className="font-semibold text-white mb-3">
+              Supported Functions
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
               <div>
-                <h4 className="font-medium text-green-700 mb-1">Logical</h4>
-                <p className="text-gray-600">IF, AND, OR, NOT</p>
-              </div>
-              <div>
-                <h4 className="font-medium text-blue-700 mb-1">Math</h4>
-                <p className="text-gray-600">
-                  SUM, SUMIF, ROUND, SQRT, MOD, POWER
+                <h4 className="font-medium text-emerald-400 mb-1">Math</h4>
+                <p className="text-slate-400">
+                  =SUM(A1:A10), Basic math (+, -, *, /)
                 </p>
               </div>
               <div>
-                <h4 className="font-medium text-purple-700 mb-1">Statistical</h4>
-                <p className="text-gray-600">
-                  AVERAGE, AVERAGEIF, COUNT, COUNTIF, MAX, MIN, MEDIAN
+                <h4 className="font-medium text-blue-400 mb-1">Statistical</h4>
+                <p className="text-slate-400">
+                  =AVERAGE(A1:A10), =COUNT(A1:A10)
                 </p>
               </div>
               <div>
-                <h4 className="font-medium text-orange-700 mb-1">Text</h4>
-                <p className="text-gray-600">
-                  LEFT, MID, RIGHT, LEN, CONCAT, FIND
+                <h4 className="font-medium text-purple-400 mb-1">Min/Max</h4>
+                <p className="text-slate-400">
+                  =MIN(A1:A10), =MAX(A1:A10)
                 </p>
               </div>
               <div>
-                <h4 className="font-medium text-red-700 mb-1">Lookup</h4>
-                <p className="text-gray-600">VLOOKUP, HLOOKUP, INDEX, MATCH</p>
-              </div>
-              <div>
-                <h4 className="font-medium text-teal-700 mb-1">Date</h4>
-                <p className="text-gray-600">TODAY, NOW, DAYS</p>
-              </div>
-              <div>
-                <h4 className="font-medium text-gray-700 mb-1">More Stats</h4>
-                <p className="text-gray-600">
-                  MODE.SNGL, RANK.EQ, LARGE, SMALL
+                <h4 className="font-medium text-amber-400 mb-1">References</h4>
+                <p className="text-slate-400">
+                  =A1+B1, =A1*2, Cell references
                 </p>
               </div>
-              <div>
-                <h4 className="font-medium text-indigo-700 mb-1">Features</h4>
-                <p className="text-gray-600">
-                  Goal Seek, Conditional Formatting
-                </p>
-              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-slate-700">
+              <p className="text-xs text-slate-500">
+                <strong>Tips:</strong> Double-click a cell to edit. Start with = for formulas. Press Enter to confirm, Tab to move right, Escape to cancel.
+              </p>
             </div>
           </div>
         )}
 
         {/* Spreadsheet Container */}
-        <div className="fortune-sheet-container h-[calc(100%-120px)] bg-white rounded-xl overflow-hidden">
-          {hasError ? (
-            <div className="flex items-center justify-center h-full bg-slate-800/50">
-              <div className="text-center p-8">
-                <FiAlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-white mb-2">Spreadsheet Error</h3>
-                <p className="text-slate-400 mb-4">There was an error loading the spreadsheet component.</p>
-                <button
-                  onClick={() => {
-                    setHasError(false);
-                    window.location.reload();
-                  }}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500"
-                >
-                  Reload Page
-                </button>
-              </div>
-            </div>
-          ) : isClient ? (
-            <Workbook
-              data={sheetData}
-              onChange={(data: any) => {
-                try {
-                  setSheetData(data);
-                } catch (e) {
-                  console.error('Spreadsheet error:', e);
-                  setHasError(true);
-                }
-              }}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full bg-slate-800/50">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
-                <p className="text-slate-400">Loading spreadsheet...</p>
-              </div>
-            </div>
-          )}
+        <div className="h-[calc(100%-120px)] bg-white rounded-xl overflow-hidden shadow-lg">
+          <SimpleSpreadsheet
+            rows={25}
+            cols={12}
+            initialData={sheetData}
+            onChange={setSheetData}
+          />
         </div>
       </div>
     </>

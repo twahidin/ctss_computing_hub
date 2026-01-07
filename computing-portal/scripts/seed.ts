@@ -27,9 +27,13 @@ async function seed() {
     await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Clear existing data
-    const collections = await mongoose.connection.db.listCollections().toArray();
+    const db = mongoose.connection.db;
+    if (!db) {
+      throw new Error('Database connection not established');
+    }
+    const collections = await db.listCollections().toArray();
     for (const collection of collections) {
-      await mongoose.connection.db.dropCollection(collection.name);
+      await db.dropCollection(collection.name);
     }
     console.log('Cleared existing data');
 
@@ -40,7 +44,7 @@ async function seed() {
     // ============================================
     // 1. Create Functions Collection
     // ============================================
-    const functions = await mongoose.connection.collection('functions').insertMany([
+    const functions = await db.collection('functions').insertMany([
       {
         functionName: 'Python Notebook',
         functionCode: 'PYTHON_NOTEBOOK',
@@ -128,7 +132,7 @@ async function seed() {
     // ============================================
     // 2. Create Schools Collection
     // ============================================
-    const schools = await mongoose.connection.collection('schools').insertMany([
+    const schools = await db.collection('schools').insertMany([
       {
         schoolName: 'Clementi Town Secondary School',
         schoolCode: 'CTSS',
@@ -163,7 +167,7 @@ async function seed() {
     // ============================================
     // 3. Create Users Collection
     // ============================================
-    const users = await mongoose.connection.collection('users').insertMany([
+    const users = await db.collection('users').insertMany([
       // Super Admin - no school assignment
       {
         username: 'superadmin',
@@ -315,20 +319,20 @@ async function seed() {
     // ============================================
     console.log('\nCreating indexes...');
     
-    await mongoose.connection.collection('users').createIndexes([
+    await db.collection('users').createIndexes([
       { key: { username: 1 }, unique: true },
       { key: { school: 1, class: 1 } },
       { key: { school: 1, profile: 1 } },
       { key: { approvalStatus: 1 } },
     ]);
 
-    await mongoose.connection.collection('schools').createIndexes([
+    await db.collection('schools').createIndexes([
       { key: { schoolCode: 1 }, unique: true },
       { key: { schoolName: 1 }, unique: true },
       { key: { isActive: 1 } },
     ]);
 
-    await mongoose.connection.collection('functions').createIndexes([
+    await db.collection('functions').createIndexes([
       { key: { functionCode: 1 }, unique: true },
       { key: { isActive: 1 } },
       { key: { profileFunctionList: 1 } },

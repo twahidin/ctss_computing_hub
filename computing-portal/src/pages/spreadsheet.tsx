@@ -135,7 +135,7 @@ const spreadsheetTemplates = [
   },
 ];
 
-// Type for cell data
+// Type definitions for spreadsheet cell data
 interface CellValue {
   v: string | number;
   m: string;

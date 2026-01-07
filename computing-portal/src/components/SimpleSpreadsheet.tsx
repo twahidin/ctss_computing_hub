@@ -3,14 +3,13 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 interface Cell {
   value: string;
   formula?: string;
-  computed?: string | number;
 }
 
 interface SimpleSpreadsheetProps {
   rows?: number;
   cols?: number;
-  initialData?: Record<string, Cell>;
-  onChange?: (data: Record<string, Cell>) => void;
+  data: Record<string, Cell>;
+  onChange: (data: Record<string, Cell>) => void;
 }
 
 // Convert column number to letter (0 = A, 1 = B, etc.)
@@ -100,7 +99,7 @@ const evaluateFormula = (
         }
       }
     }
-    return count > 0 ? sum / count : 0;
+    return count > 0 ? Math.round((sum / count) * 100) / 100 : 0;
   }
   
   // Handle COUNT function
@@ -200,7 +199,10 @@ const evaluateFormula = (
     // Only allow safe characters
     if (/^[\d\s+\-*/().]+$/.test(result)) {
       const computed = Function('"use strict"; return (' + result + ')')();
-      return typeof computed === 'number' && !isNaN(computed) ? computed : '#ERROR!';
+      if (typeof computed === 'number' && !isNaN(computed)) {
+        return Math.round(computed * 100) / 100;
+      }
+      return '#ERROR!';
     }
   } catch {
     return '#ERROR!';
@@ -212,18 +214,30 @@ const evaluateFormula = (
 export default function SimpleSpreadsheet({
   rows = 20,
   cols = 10,
-  initialData = {},
+  data,
   onChange,
 }: SimpleSpreadsheetProps) {
-  const [data, setData] = useState<Record<string, Cell>>(initialData);
   const [selectedCell, setSelectedCell] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [formulaBarValue, setFormulaBarValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const formulaInputRef = useRef<HTMLInputElement>(null);
+
+  // Update formula bar when cell selection changes
+  useEffect(() => {
+    if (selectedCell) {
+      const cell = data[selectedCell];
+      setFormulaBarValue(cell?.formula || cell?.value || '');
+    } else {
+      setFormulaBarValue('');
+    }
+  }, [selectedCell, data]);
 
   useEffect(() => {
     if (editingCell && inputRef.current) {
       inputRef.current.focus();
+      inputRef.current.select();
     }
   }, [editingCell]);
 
@@ -240,6 +254,9 @@ export default function SimpleSpreadsheet({
   }, [data]);
 
   const handleCellClick = (key: string) => {
+    if (editingCell && editingCell !== key) {
+      commitEdit();
+    }
     setSelectedCell(key);
   };
 
@@ -253,7 +270,7 @@ export default function SimpleSpreadsheet({
     setEditValue(e.target.value);
   };
 
-  const handleInputBlur = () => {
+  const commitEdit = () => {
     if (editingCell) {
       const newData = { ...data };
       if (editValue.startsWith('=')) {
@@ -261,15 +278,18 @@ export default function SimpleSpreadsheet({
       } else {
         newData[editingCell] = { value: editValue };
       }
-      setData(newData);
-      onChange?.(newData);
+      onChange(newData);
       setEditingCell(null);
     }
   };
 
+  const handleInputBlur = () => {
+    commitEdit();
+  };
+
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleInputBlur();
+      commitEdit();
       // Move to next row
       if (selectedCell) {
         const parsed = parseCellRef(selectedCell);
@@ -280,9 +300,10 @@ export default function SimpleSpreadsheet({
       }
     } else if (e.key === 'Escape') {
       setEditingCell(null);
+      setEditValue('');
     } else if (e.key === 'Tab') {
       e.preventDefault();
-      handleInputBlur();
+      commitEdit();
       // Move to next column
       if (selectedCell) {
         const parsed = parseCellRef(selectedCell);
@@ -294,65 +315,172 @@ export default function SimpleSpreadsheet({
     }
   };
 
+  const handleFormulaBarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormulaBarValue(e.target.value);
+  };
+
+  const handleFormulaBarKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && selectedCell) {
+      const newData = { ...data };
+      if (formulaBarValue.startsWith('=')) {
+        newData[selectedCell] = { value: '', formula: formulaBarValue };
+      } else {
+        newData[selectedCell] = { value: formulaBarValue };
+      }
+      onChange(newData);
+      formulaInputRef.current?.blur();
+    } else if (e.key === 'Escape') {
+      const cell = data[selectedCell || ''];
+      setFormulaBarValue(cell?.formula || cell?.value || '');
+      formulaInputRef.current?.blur();
+    }
+  };
+
+  const handleFormulaBarBlur = () => {
+    if (selectedCell && formulaBarValue !== (data[selectedCell]?.formula || data[selectedCell]?.value || '')) {
+      const newData = { ...data };
+      if (formulaBarValue.startsWith('=')) {
+        newData[selectedCell] = { value: '', formula: formulaBarValue };
+      } else {
+        newData[selectedCell] = { value: formulaBarValue };
+      }
+      onChange(newData);
+    }
+  };
+
+  // Handle keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (editingCell) return;
+    
+    if (!selectedCell) return;
+    const parsed = parseCellRef(selectedCell);
+    if (!parsed) return;
+
+    let newRow = parsed.row;
+    let newCol = parsed.col;
+
+    switch (e.key) {
+      case 'ArrowUp':
+        newRow = Math.max(0, parsed.row - 1);
+        break;
+      case 'ArrowDown':
+        newRow = Math.min(rows - 1, parsed.row + 1);
+        break;
+      case 'ArrowLeft':
+        newCol = Math.max(0, parsed.col - 1);
+        break;
+      case 'ArrowRight':
+        newCol = Math.min(cols - 1, parsed.col + 1);
+        break;
+      case 'Enter':
+        handleCellDoubleClick(selectedCell);
+        return;
+      case 'Delete':
+      case 'Backspace':
+        if (selectedCell && data[selectedCell]) {
+          const newData = { ...data };
+          delete newData[selectedCell];
+          onChange(newData);
+        }
+        return;
+      default:
+        // Start typing in cell
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+          setEditingCell(selectedCell);
+          setEditValue(e.key);
+          return;
+        }
+        return;
+    }
+
+    e.preventDefault();
+    setSelectedCell(getCellKey(newRow, newCol));
+  };
+
   return (
-    <div className="overflow-auto h-full bg-white">
-      <table className="border-collapse min-w-full">
-        <thead className="sticky top-0 z-10">
-          <tr>
-            <th className="w-12 h-8 bg-slate-200 border border-slate-300 text-xs font-medium text-slate-600"></th>
-            {Array.from({ length: cols }, (_, c) => (
-              <th
-                key={c}
-                className="w-24 h-8 bg-slate-200 border border-slate-300 text-xs font-medium text-slate-600"
-              >
-                {colToLetter(c)}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {Array.from({ length: rows }, (_, r) => (
-            <tr key={r}>
-              <td className="w-12 h-7 bg-slate-100 border border-slate-300 text-center text-xs font-medium text-slate-600">
-                {r + 1}
-              </td>
-              {Array.from({ length: cols }, (_, c) => {
-                const key = getCellKey(r, c);
-                const isSelected = selectedCell === key;
-                const isEditing = editingCell === key;
-                
-                return (
-                  <td
-                    key={c}
-                    className={`w-24 h-7 border border-slate-200 p-0 relative ${
-                      isSelected ? 'ring-2 ring-indigo-500 ring-inset' : ''
-                    }`}
-                    onClick={() => handleCellClick(key)}
-                    onDoubleClick={() => handleCellDoubleClick(key)}
-                  >
-                    {isEditing ? (
-                      <input
-                        ref={inputRef}
-                        type="text"
-                        value={editValue}
-                        onChange={handleInputChange}
-                        onBlur={handleInputBlur}
-                        onKeyDown={handleInputKeyDown}
-                        className="w-full h-full px-1 text-sm border-none outline-none bg-white"
-                      />
-                    ) : (
-                      <div className="w-full h-full px-1 text-sm truncate leading-7 text-slate-800">
-                        {getCellDisplay(key)}
-                      </div>
-                    )}
-                  </td>
-                );
-              })}
+    <div className="flex flex-col h-full bg-white" tabIndex={0} onKeyDown={handleKeyDown}>
+      {/* Formula Bar */}
+      <div className="flex items-center border-b border-slate-300 bg-slate-50 px-2 py-1 flex-shrink-0">
+        <div className="w-16 text-center font-mono text-sm font-medium text-slate-600 border-r border-slate-300 pr-2">
+          {selectedCell || ''}
+        </div>
+        <div className="flex-1 flex items-center px-2">
+          <span className="text-slate-400 mr-2 text-sm">fx</span>
+          <input
+            ref={formulaInputRef}
+            type="text"
+            value={formulaBarValue}
+            onChange={handleFormulaBarChange}
+            onKeyDown={handleFormulaBarKeyDown}
+            onBlur={handleFormulaBarBlur}
+            placeholder={selectedCell ? "Enter value or formula (start with =)" : "Select a cell"}
+            className="flex-1 px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            disabled={!selectedCell}
+          />
+        </div>
+      </div>
+
+      {/* Spreadsheet Grid */}
+      <div className="overflow-auto flex-1">
+        <table className="border-collapse min-w-full">
+          <thead className="sticky top-0 z-10">
+            <tr>
+              <th className="w-12 h-8 bg-slate-200 border border-slate-300 text-xs font-medium text-slate-600"></th>
+              {Array.from({ length: cols }, (_, c) => (
+                <th
+                  key={c}
+                  className="w-24 min-w-[96px] h-8 bg-slate-200 border border-slate-300 text-xs font-medium text-slate-600"
+                >
+                  {colToLetter(c)}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {Array.from({ length: rows }, (_, r) => (
+              <tr key={r}>
+                <td className="w-12 h-7 bg-slate-100 border border-slate-300 text-center text-xs font-medium text-slate-600 sticky left-0">
+                  {r + 1}
+                </td>
+                {Array.from({ length: cols }, (_, c) => {
+                  const key = getCellKey(r, c);
+                  const isSelected = selectedCell === key;
+                  const isEditing = editingCell === key;
+                  const cell = data[key];
+                  const hasFormula = cell?.formula;
+                  
+                  return (
+                    <td
+                      key={c}
+                      className={`w-24 min-w-[96px] h-7 border border-slate-200 p-0 relative cursor-cell ${
+                        isSelected ? 'ring-2 ring-indigo-500 ring-inset bg-indigo-50' : ''
+                      } ${hasFormula ? 'bg-blue-50' : ''}`}
+                      onClick={() => handleCellClick(key)}
+                      onDoubleClick={() => handleCellDoubleClick(key)}
+                    >
+                      {isEditing ? (
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          value={editValue}
+                          onChange={handleInputChange}
+                          onBlur={handleInputBlur}
+                          onKeyDown={handleInputKeyDown}
+                          className="w-full h-full px-1 text-sm border-none outline-none bg-white"
+                        />
+                      ) : (
+                        <div className="w-full h-full px-1 text-sm truncate leading-7 text-slate-800">
+                          {getCellDisplay(key)}
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
-

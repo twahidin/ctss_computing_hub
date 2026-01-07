@@ -288,9 +288,9 @@ export default function SpreadsheetPage() {
         {/* Spreadsheet Container */}
         <div className="h-[calc(100%-120px)] bg-white rounded-xl overflow-hidden shadow-lg">
           <SimpleSpreadsheet
-            rows={25}
-            cols={12}
-            initialData={sheetData}
+            rows={30}
+            cols={15}
+            data={sheetData}
             onChange={setSheetData}
           />
         </div>

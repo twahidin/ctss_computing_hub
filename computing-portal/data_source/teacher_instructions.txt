@@ -1,0 +1,69 @@
+SPREADSHEET MASTERY - TEACHER INSTRUCTIONS
+==========================================
+
+This data file contains practice exercises aligned with the "Spreadsheet Mastery" presentation.
+
+DATA SECTIONS:
+--------------
+
+SHEET 1: CLASS PARTY CONTRIBUTIONS
+- Students can practice: Absolute cell references ($), multiplication formulas
+- Exercise: Calculate Amount column using =Family_Members * $Contribution_Per_Student
+- Formula should be: =B2*$B$12 (with absolute reference to contribution amount)
+
+SHEET 2: PARTY SUPPLIES  
+- Students can practice: Basic formulas, relative references, SUM, copy-paste formulas
+- Exercise: Calculate Total_Cost using =Quantity * Unit_Price (e.g., =B2*C2)
+- Then drag formula down to calculate all totals
+- Calculate grand total using =SUM(D2:D10)
+
+SHEET 3: FOOD CHOICES LOOKUP
+- Students can practice: VLOOKUP function
+- Exercise: Use VLOOKUP to pull food choices into main student list
+- Formula example: =VLOOKUP(A4,FoodChoices!A:B,2,FALSE)
+
+SHEET 4: ATTENDEE INFO
+- Students can practice: Text functions (LEFT, SEARCH, MID)
+- Exercise: Split names from dietary requirements
+- Name formula: =LEFT(A2,SEARCH("(",A2)-2)
+- Diet formula: =MID(A2,SEARCH("(",A2)+1,SEARCH(")",A2)-SEARCH("(",A2)-1)
+
+SHEET 5: ADDITIONAL FAMILY MEMBERS
+- Students can practice: COUNTIF function
+- Exercise: Count how many families have more than 3 members
+- Formula: =COUNTIF(A2:A10,">3")
+
+ADVANCED EXERCISES:
+------------------
+1. Conditional Formatting: Highlight supplies costing more than $20
+2. Goal Seek: Determine contribution amount needed to reach specific total
+3. Data Validation: Create dropdown lists for food choices
+4. Charts: Create bar chart showing supply costs
+
+LEARNING OBJECTIVES MET:
+-----------------------
+✓ Cell references (relative and absolute)
+✓ Basic formulas (addition, multiplication)
+✓ Functions (SUM, AVERAGE, MAX, MIN, COUNTIF)
+✓ VLOOKUP for data retrieval
+✓ Text functions (LEFT, MID, SEARCH)
+✓ Conditional formatting
+✓ Goal Seek
+✓ Formula copying/dragging
+
+TIPS FOR STUDENTS:
+-----------------
+1. Remember: Text positions start at 1 in spreadsheets (not 0 like Python)
+2. Use F4 key to toggle between reference types ($A$1, $A1, A$1, A1)
+3. Press F2 to edit a cell formula
+4. Drag the fill handle (small square at cell corner) to copy formulas
+
+SOLUTION EXAMPLES:
+-----------------
+If students get stuck, here are some answer formulas:
+
+Contributions Amount: =B2*$B$12
+Party Supplies Total: =B2*C2
+Sum of all supplies: =SUM(D2:D10)
+Name extraction: =LEFT(A2,SEARCH("(",A2)-2)
+Count families >3: =COUNTIF(B2:B10,">3")

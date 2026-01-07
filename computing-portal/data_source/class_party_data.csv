@@ -1,0 +1,54 @@
+SHEET 1: CLASS PARTY CONTRIBUTIONS
+Student,Family_Members,Amount
+Alex,3,
+Alex,2,
+Andy,4,
+Kathar,1,
+Kathar,3,
+Marson,2,
+Nally,4,
+Miky,3,
+Steve,5,
+,,
+Contribution_Per_Student,12.00,
+
+SHEET 2: PARTY SUPPLIES
+Item,Quantity,Unit_Price,Total_Cost
+Balloons,3,0.80,
+Banners,2,5.00,
+Confetti,4,3.60,
+Plates,50,0.10,
+Napkins,100,0.05,
+Cups,50,0.15,
+Disposable utensils,1,60.00,
+Party hats,1,36.00,
+Streamers,1,15.00,
+
+SHEET 3: FOOD CHOICES LOOKUP
+Name,Choice
+Aisha,Pizza
+Ben,Pizza
+Carlos,Chicken
+Carlos,Vegan Wrap
+Dana,Pizza
+Dana,Salad
+
+SHEET 4: ATTENDEE INFO
+Attendee_Info
+Mei Ling (Vegetarian)
+Jordan Smith (Vegan)
+Alex Chen (No restrictions)
+Sarah Johnson (Gluten-free)
+Marcus Williams (Vegetarian)
+
+SHEET 5: ADDITIONAL FAMILY MEMBERS
+Additional_family_members
+3
+2
+4
+1
+3
+4
+3
+5
+2

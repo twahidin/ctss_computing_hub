@@ -2,19 +2,6 @@
 
 A comprehensive learning portal for Singapore-Cambridge O-Level Computing (Syllabus 7155) students. Features Python programming environment, spreadsheet practice, and AI tutoring.
 
-## 🚀 Quick Deploy to Railway
-
-**✅ Everything is configured and ready to deploy!**
-
-### 👉 **[START HERE: YOUR_NEXT_STEPS.md](./YOUR_NEXT_STEPS.md)** 👈
-
-**Or jump directly to:**
-- 🚀 [Quick Start Guide (10 min)](./QUICK_START_RAILWAY.md) - Recommended!
-- 📋 [Deployment Checklist](./DEPLOY_CHECKLIST.md)
-- 📚 [Full Railway Guide](./RAILWAY_DEPLOYMENT.md)
-- 🎯 [Setup Summary](./RAILWAY_SETUP_SUMMARY.md)
-- 🗺️ [Navigation Hub](./START_HERE.md)
-
 ## Features
 
 - 🐍 **Python Lab**: Write and run Python code with Jupyter-style notebooks
@@ -102,27 +89,19 @@ computing-portal/
 
 ## Deployment on Railway
 
-**🚂 Ready to deploy? Follow our comprehensive guides:**
+1. Create a new project on [Railway](https://railway.app)
 
-### Quick Start (10 minutes)
-Follow **[QUICK_START_RAILWAY.md](./QUICK_START_RAILWAY.md)** for the fastest deployment.
+2. Add a MongoDB service to your project
 
-### Detailed Setup
-See **[RAILWAY_DEPLOYMENT.md](./RAILWAY_DEPLOYMENT.md)** for comprehensive instructions with troubleshooting.
+3. Connect your GitHub repository
 
-### Using CLI
-Run the automated setup script:
-```bash
-./railway-setup.sh
-```
+4. Set environment variables in Railway:
+   - `MONGODB_URI` (use Railway's MongoDB connection string)
+   - `NEXTAUTH_URL` (your Railway app URL)
+   - `NEXTAUTH_SECRET` (generate with `openssl rand -base64 32`)
+   - `ANTHROPIC_API_KEY` (your Claude API key)
 
-### Required Environment Variables
-- `MONGODB_URI` - Reference Railway's MongoDB plugin
-- `NEXTAUTH_URL` - Your Railway app URL
-- `NEXTAUTH_SECRET` - Generate with `openssl rand -base64 32`
-- `ANTHROPIC_API_KEY` - From https://console.anthropic.com/
-
-**All configuration files are ready!** Just follow the guides above.
+5. Deploy!
 
 ## Syllabus Coverage
 

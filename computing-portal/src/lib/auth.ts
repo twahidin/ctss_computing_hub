@@ -8,22 +8,22 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
-        email: { label: 'Email', type: 'email' },
+        username: { label: 'Username', type: 'text' },
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error('Please enter email and password');
+        if (!credentials?.username || !credentials?.password) {
+          throw new Error('Please enter username and password');
         }
 
         await dbConnect();
 
-        const user = await User.findOne({ email: credentials.email }).select(
+        const user = await User.findOne({ username: credentials.username }).select(
           '+password'
         );
 
         if (!user) {
-          throw new Error('No user found with this email');
+          throw new Error('No user found with this username');
         }
 
         const isPasswordValid = await user.comparePassword(credentials.password);
@@ -32,15 +32,30 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Invalid password');
         }
 
+        // Check if user is approved (super_admin is auto-approved)
+        if (user.profile !== 'super_admin' && user.approvalStatus !== 'approved') {
+          if (user.approvalStatus === 'pending') {
+            throw new Error('Your account is pending approval. Please wait for an administrator to approve your registration.');
+          }
+          if (user.approvalStatus === 'rejected') {
+            throw new Error(`Your registration was rejected. ${user.rejectionReason || 'Please contact an administrator.'}`);
+          }
+        }
+
         // Update last login
         await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
 
         return {
           id: user._id.toString(),
-          email: user.email,
           name: user.name,
-          role: user.role,
-          studentId: user.studentId,
+          username: user.username,
+          email: user.email || undefined,
+          profile: user.profile,
+          school: user.schoolName || undefined,
+          schoolId: user.school?.toString() || undefined,
+          class: user.class || undefined,
+          level: user.level || undefined,
+          approvalStatus: user.approvalStatus,
         };
       },
     }),
@@ -53,16 +68,26 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role;
-        token.studentId = user.studentId;
+        token.username = user.username as string;
+        token.profile = user.profile;
+        token.school = user.school;
+        token.schoolId = user.schoolId;
+        token.class = user.class;
+        token.level = user.level;
+        token.approvalStatus = user.approvalStatus;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as string;
-        session.user.studentId = token.studentId as string;
+        session.user.username = token.username as string;
+        session.user.profile = token.profile as any;
+        session.user.school = token.school as string | undefined;
+        session.user.schoolId = token.schoolId as string | undefined;
+        session.user.class = token.class as string | undefined;
+        session.user.level = token.level as string | undefined;
+        session.user.approvalStatus = token.approvalStatus as any;
       }
       return session;
     },

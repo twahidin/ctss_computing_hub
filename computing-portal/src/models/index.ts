@@ -1,5 +1,11 @@
 export { default as User } from './User';
-export type { IUser } from './User';
+export type { IUser, UserProfile, ApprovalStatus, ISavedConfiguration } from './User';
+
+export { default as School } from './School';
+export type { ISchool } from './School';
+
+export { default as Function } from './Function';
+export type { IFunction, IFunctionData } from './Function';
 
 export { default as Notebook } from './Notebook';
 export type { INotebook } from './Notebook';

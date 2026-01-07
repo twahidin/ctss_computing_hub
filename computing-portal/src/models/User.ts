@@ -1,14 +1,36 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+// Profile types with hierarchy
+export type UserProfile = 'student' | 'teacher' | 'admin' | 'super_admin';
+
+// Approval status for new registrations
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ISavedConfiguration {
+  theme?: string;
+  language?: string;
+  notifications?: boolean;
+  dashboardLayout?: object;
+  [key: string]: any;
+}
+
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
-  email: string;
+  username: string;
+  email?: string;
   password: string;
   name: string;
-  studentId: string;
-  role: 'student' | 'teacher' | 'admin';
-  class?: string;
+  profile: UserProfile;
+  school: mongoose.Types.ObjectId | null;
+  schoolName?: string; // Denormalized for quick access
+  class: string;
+  level: string;
+  savedConfiguration: ISavedConfiguration;
+  approvalStatus: ApprovalStatus;
+  approvedBy?: mongoose.Types.ObjectId;
+  approvedAt?: Date;
+  rejectionReason?: string;
   createdAt: Date;
   updatedAt: Date;
   lastLogin?: Date;
@@ -24,12 +46,19 @@ export interface IUser extends Document {
 
 const UserSchema = new Schema<IUser>(
   {
+    username: {
+      type: String,
+      required: [true, 'Username is required'],
+      unique: true,
+      trim: true,
+      minlength: [3, 'Username must be at least 3 characters'],
+      maxlength: [50, 'Username cannot exceed 50 characters'],
+    },
     email: {
       type: String,
-      required: [true, 'Email is required'],
-      unique: true,
       lowercase: true,
       trim: true,
+      sparse: true, // Allows multiple null values
     },
     password: {
       type: String,
@@ -42,20 +71,49 @@ const UserSchema = new Schema<IUser>(
       required: [true, 'Name is required'],
       trim: true,
     },
-    studentId: {
+    profile: {
       type: String,
-      required: [true, 'Student ID is required'],
-      unique: true,
-      trim: true,
-    },
-    role: {
-      type: String,
-      enum: ['student', 'teacher', 'admin'],
+      enum: ['student', 'teacher', 'admin', 'super_admin'],
       default: 'student',
+      required: true,
+    },
+    school: {
+      type: Schema.Types.ObjectId,
+      ref: 'School',
+      default: null,
+    },
+    schoolName: {
+      type: String,
+      trim: true,
     },
     class: {
       type: String,
       trim: true,
+      default: '',
+    },
+    level: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    savedConfiguration: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+    },
+    approvedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    approvedAt: {
+      type: Date,
+    },
+    rejectionReason: {
+      type: String,
     },
     lastLogin: {
       type: Date,
@@ -72,6 +130,12 @@ const UserSchema = new Schema<IUser>(
     timestamps: true,
   }
 );
+
+// Indexes for efficient queries
+UserSchema.index({ school: 1, class: 1 });
+UserSchema.index({ school: 1, profile: 1 });
+UserSchema.index({ approvalStatus: 1 });
+UserSchema.index({ profile: 1, school: 1 });
 
 // Hash password before saving
 UserSchema.pre('save', async function (next) {
@@ -91,6 +155,12 @@ UserSchema.methods.comparePassword = async function (
   candidatePassword: string
 ): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
+};
+
+// Static method to hash password (for password resets)
+UserSchema.statics.hashPassword = async function (password: string): Promise<string> {
+  const salt = await bcrypt.genSalt(12);
+  return bcrypt.hash(password, salt);
 };
 
 const User: Model<IUser> =

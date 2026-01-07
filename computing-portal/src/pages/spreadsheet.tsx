@@ -1,277 +1,270 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { FiSave, FiHelpCircle, FiChevronDown, FiRefreshCw } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
+// Dynamically import react-spreadsheet to avoid SSR issues
+const Spreadsheet = dynamic(() => import('react-spreadsheet'), { ssr: false });
+
+// Types for react-spreadsheet
+interface CellBase {
+  value: string | number;
+  readOnly?: boolean;
+  className?: string;
+}
+
+type Matrix = (CellBase | undefined)[][];
+
 // Sample data templates for 7155 syllabus exercises
-const spreadsheetTemplates = [
+const spreadsheetTemplates: { name: string; description: string; data: Matrix }[] = [
   {
     name: 'VLOOKUP Practice',
     description: 'Practice using VLOOKUP for exact matching',
     data: [
-      ['Student ID', 'Name', 'Score', 'Grade', '', 'Min Score', 'Grade'],
-      ['S001', 'Alice', 85, '', '', 0, 'F'],
-      ['S002', 'Bob', 72, '', '', 50, 'D'],
-      ['S003', 'Charlie', 91, '', '', 60, 'C'],
-      ['', '', '', '', '', 70, 'B'],
-      ['', '', '', '', '', 80, 'A'],
+      [{ value: 'Student ID' }, { value: 'Name' }, { value: 'Score' }, { value: 'Grade' }, undefined, { value: 'Min Score' }, { value: 'Grade' }],
+      [{ value: 'S001' }, { value: 'Alice' }, { value: 85 }, undefined, undefined, { value: 0 }, { value: 'F' }],
+      [{ value: 'S002' }, { value: 'Bob' }, { value: 72 }, undefined, undefined, { value: 50 }, { value: 'D' }],
+      [{ value: 'S003' }, { value: 'Charlie' }, { value: 91 }, undefined, undefined, { value: 60 }, { value: 'C' }],
+      [undefined, undefined, undefined, undefined, undefined, { value: 70 }, { value: 'B' }],
+      [undefined, undefined, undefined, undefined, undefined, { value: 80 }, { value: 'A' }],
     ],
   },
   {
     name: 'Statistical Functions',
     description: 'Practice SUM, AVERAGE, COUNT, MIN, MAX',
     data: [
-      ['Month', 'Sales'],
-      ['Jan', 1500],
-      ['Feb', 2300],
-      ['Mar', 1800],
-      ['Apr', 2100],
-      ['May', 2800],
-      ['', ''],
-      ['Total:', '=SUM(B2:B6)'],
-      ['Average:', '=AVERAGE(B2:B6)'],
-      ['Max:', '=MAX(B2:B6)'],
-      ['Min:', '=MIN(B2:B6)'],
-      ['Count:', '=COUNT(B2:B6)'],
+      [{ value: 'Month' }, { value: 'Sales' }],
+      [{ value: 'Jan' }, { value: 1500 }],
+      [{ value: 'Feb' }, { value: 2300 }],
+      [{ value: 'Mar' }, { value: 1800 }],
+      [{ value: 'Apr' }, { value: 2100 }],
+      [{ value: 'May' }, { value: 2800 }],
+      [undefined, undefined],
+      [{ value: 'Total:' }, { value: '=SUM(B2:B6)' }],
+      [{ value: 'Average:' }, { value: '=AVERAGE(B2:B6)' }],
+      [{ value: 'Max:' }, { value: '=MAX(B2:B6)' }],
+      [{ value: 'Min:' }, { value: '=MIN(B2:B6)' }],
+      [{ value: 'Count:' }, { value: '=COUNT(B2:B6)' }],
     ],
   },
   {
     name: 'Simple Calculations',
     description: 'Practice basic formulas and cell references',
     data: [
-      ['Item', 'Qty', 'Price', 'Total'],
-      ['Apples', 10, 1.50, '=B2*C2'],
-      ['Oranges', 8, 2.00, '=B3*C3'],
-      ['Bananas', 12, 0.75, '=B4*C4'],
-      ['', '', '', ''],
-      ['Grand Total:', '', '', '=SUM(D2:D4)'],
+      [{ value: 'Item' }, { value: 'Qty' }, { value: 'Price' }, { value: 'Total' }],
+      [{ value: 'Apples' }, { value: 10 }, { value: 1.50 }, { value: '=B2*C2' }],
+      [{ value: 'Oranges' }, { value: 8 }, { value: 2.00 }, { value: '=B3*C3' }],
+      [{ value: 'Bananas' }, { value: 12 }, { value: 0.75 }, { value: '=B4*C4' }],
+      [undefined, undefined, undefined, undefined],
+      [{ value: 'Grand Total:' }, undefined, undefined, { value: '=SUM(D2:D4)' }],
     ],
   },
   {
     name: 'Inventory Tracker',
     description: 'Practice conditional logic and calculations',
     data: [
-      ['Product', 'Category', 'Price', 'Stock'],
-      ['Laptop', 'Electronics', 1200, 15],
-      ['Mouse', 'Electronics', 25, 50],
-      ['Desk', 'Furniture', 300, 8],
-      ['Chair', 'Furniture', 150, 20],
-      ['', '', '', ''],
-      ['Total Stock:', '', '', '=SUM(D2:D5)'],
-      ['Avg Price:', '', '=AVERAGE(C2:C5)', ''],
+      [{ value: 'Product' }, { value: 'Category' }, { value: 'Price' }, { value: 'Stock' }],
+      [{ value: 'Laptop' }, { value: 'Electronics' }, { value: 1200 }, { value: 15 }],
+      [{ value: 'Mouse' }, { value: 'Electronics' }, { value: 25 }, { value: 50 }],
+      [{ value: 'Desk' }, { value: 'Furniture' }, { value: 300 }, { value: 8 }],
+      [{ value: 'Chair' }, { value: 'Furniture' }, { value: 150 }, { value: 20 }],
+      [undefined, undefined, undefined, undefined],
+      [{ value: 'Total Stock:' }, undefined, undefined, { value: '=SUM(D2:D5)' }],
+      [{ value: 'Avg Price:' }, undefined, { value: '=AVERAGE(C2:C5)' }, undefined],
     ],
   },
 ];
 
 // Create empty data grid
-const createEmptyData = (rows: number, cols: number) => {
-  return Array(rows).fill(null).map(() => Array(cols).fill(''));
+const createEmptyData = (rows: number, cols: number): Matrix => {
+  return Array(rows).fill(null).map(() => Array(cols).fill(undefined));
 };
 
-// Spreadsheet component that loads jspreadsheet dynamically
-function SpreadsheetComponent({ 
-  initialData,
-  onDataChange 
-}: { 
-  initialData: (string | number)[][];
-  onDataChange?: (data: (string | number)[][]) => void;
-}) {
-  const jspreadsheetRef = useRef<HTMLDivElement>(null);
-  const spreadsheetInstance = useRef<any>(null);
+// Column labels A-Z
+const columnLabels = Array(15).fill(null).map((_, i) => String.fromCharCode(65 + i));
 
-  useEffect(() => {
-    // Dynamic import to avoid SSR issues
-    const initSpreadsheet = async () => {
-      if (typeof window === 'undefined' || !jspreadsheetRef.current) return;
+// Parse cell reference like "A1" to [row, col]
+const parseCellRef = (ref: string): [number, number] | null => {
+  const match = ref.match(/^([A-Z]+)(\d+)$/);
+  if (!match) return null;
+  const col = match[1].split('').reduce((acc, char) => acc * 26 + char.charCodeAt(0) - 64, 0) - 1;
+  const row = parseInt(match[2]) - 1;
+  return [row, col];
+};
 
-      // Import jspreadsheet and its CSS
-      const jspreadsheetModule = await import('jspreadsheet-ce');
-      const jspreadsheet = jspreadsheetModule.default;
-      
-      // Import CSS dynamically
-      if (!document.querySelector('link[href*="jspreadsheet"]')) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://bossanova.uk/jspreadsheet/v4/jexcel.css';
-        document.head.appendChild(link);
-        
-        const jsuites = document.createElement('link');
-        jsuites.rel = 'stylesheet';
-        jsuites.href = 'https://jsuites.net/v4/jsuites.css';
-        document.head.appendChild(jsuites);
-      }
+// Parse range like "A1:B5"
+const parseRange = (range: string): [number, number, number, number] | null => {
+  const [start, end] = range.split(':');
+  const startRef = parseCellRef(start);
+  const endRef = parseCellRef(end);
+  if (!startRef || !endRef) return null;
+  return [startRef[0], startRef[1], endRef[0], endRef[1]];
+};
 
-      // Destroy existing instance if any
-      if (spreadsheetInstance.current) {
-        try {
-          jspreadsheet.destroy(jspreadsheetRef.current as any);
-        } catch (e) {
-          // Ignore destruction errors
+// Get numeric value from cell
+const getNumericValue = (cell: CellBase | undefined): number => {
+  if (!cell || cell.value === undefined || cell.value === '') return 0;
+  const num = typeof cell.value === 'number' ? cell.value : parseFloat(String(cell.value));
+  return isNaN(num) ? 0 : num;
+};
+
+// Evaluate formula
+const evaluateFormula = (formula: string, data: Matrix): string | number => {
+  if (!formula.startsWith('=')) return formula;
+  
+  const expr = formula.substring(1).toUpperCase();
+  
+  try {
+    // Handle SUM
+    const sumMatch = expr.match(/^SUM\(([A-Z]+\d+):([A-Z]+\d+)\)$/);
+    if (sumMatch) {
+      const range = parseRange(`${sumMatch[1]}:${sumMatch[2]}`);
+      if (!range) return '#REF!';
+      let sum = 0;
+      for (let r = range[0]; r <= range[2]; r++) {
+        for (let c = range[1]; c <= range[3]; c++) {
+          sum += getNumericValue(data[r]?.[c]);
         }
       }
-
-      // Clear the container
-      if (jspreadsheetRef.current) {
-        jspreadsheetRef.current.innerHTML = '';
-      }
-
-      // Create column config (A-Z columns)
-      const columns = Array(26).fill(null).map((_, i) => ({
-        title: String.fromCharCode(65 + i),
-        width: 100,
-      }));
-
-      // Initialize jspreadsheet
-      spreadsheetInstance.current = jspreadsheet(jspreadsheetRef.current as any, {
-        data: initialData.length > 0 ? initialData : createEmptyData(50, 26),
-        columns,
-        minDimensions: [26, 50],
-        tableOverflow: true,
-        tableWidth: '100%',
-        tableHeight: '100%',
-        allowInsertRow: true,
-        allowInsertColumn: true,
-        allowDeleteRow: true,
-        allowDeleteColumn: true,
-        allowRenameColumn: true,
-        allowComments: true,
-        columnSorting: true,
-        columnDrag: true,
-        columnResize: true,
-        rowResize: true,
-        rowDrag: true,
-        selectionCopy: true,
-        search: true,
-        parseFormulas: true,
-        autoIncrement: true,
-        about: false,
-        onchange: () => {
-          if (onDataChange && spreadsheetInstance.current) {
-            const data = spreadsheetInstance.current.getData();
-            onDataChange(data);
+      return sum;
+    }
+    
+    // Handle AVERAGE
+    const avgMatch = expr.match(/^AVERAGE\(([A-Z]+\d+):([A-Z]+\d+)\)$/);
+    if (avgMatch) {
+      const range = parseRange(`${avgMatch[1]}:${avgMatch[2]}`);
+      if (!range) return '#REF!';
+      let sum = 0, count = 0;
+      for (let r = range[0]; r <= range[2]; r++) {
+        for (let c = range[1]; c <= range[3]; c++) {
+          const val = getNumericValue(data[r]?.[c]);
+          if (val !== 0 || data[r]?.[c]?.value === 0) {
+            sum += val;
+            count++;
           }
-        },
-        contextMenu: function(obj: any, x: any, y: any, e: any) {
-          const items: any[] = [];
-          const colIdx = typeof x === 'number' ? x : parseInt(x) || 0;
-          const rowIdx = typeof y === 'number' ? y : parseInt(y) || 0;
-          
-          // Insert row options
-          items.push({
-            title: 'Insert row above',
-            onclick: function() {
-              obj.insertRow(1, rowIdx, true);
-            }
-          });
-          items.push({
-            title: 'Insert row below',
-            onclick: function() {
-              obj.insertRow(1, rowIdx, false);
-            }
-          });
-          
-          // Insert column options
-          items.push({
-            title: 'Insert column left',
-            onclick: function() {
-              obj.insertColumn(1, colIdx, true);
-            }
-          });
-          items.push({
-            title: 'Insert column right',
-            onclick: function() {
-              obj.insertColumn(1, colIdx, false);
-            }
-          });
-          
-          items.push({ type: 'line' });
-          
-          // Delete options
-          items.push({
-            title: 'Delete row',
-            onclick: function() {
-              obj.deleteRow(rowIdx, 1);
-            }
-          });
-          items.push({
-            title: 'Delete column',
-            onclick: function() {
-              obj.deleteColumn(colIdx, 1);
-            }
-          });
-          
-          return items;
-        },
-        style: {
-          A1: 'font-weight: bold;',
-        },
-      } as any);
-    };
-
-    initSpreadsheet();
-
-    return () => {
-      // Cleanup on unmount
-      if (spreadsheetInstance.current && jspreadsheetRef.current) {
-        try {
-          import('jspreadsheet-ce').then(mod => {
-            mod.default.destroy(jspreadsheetRef.current as any);
-          });
-        } catch (e) {
-          // Ignore cleanup errors
         }
       }
-    };
-  }, [initialData, onDataChange]);
-
-  return (
-    <div 
-      ref={jspreadsheetRef} 
-      className="jspreadsheet-container"
-      style={{ width: '100%', height: '100%', overflow: 'auto' }}
-    />
-  );
-}
-
-// Dynamically import the component to avoid SSR issues
-const DynamicSpreadsheet = dynamic(
-  () => Promise.resolve(SpreadsheetComponent),
-  { ssr: false }
-);
+      return count > 0 ? Math.round((sum / count) * 100) / 100 : 0;
+    }
+    
+    // Handle MIN
+    const minMatch = expr.match(/^MIN\(([A-Z]+\d+):([A-Z]+\d+)\)$/);
+    if (minMatch) {
+      const range = parseRange(`${minMatch[1]}:${minMatch[2]}`);
+      if (!range) return '#REF!';
+      let min = Infinity;
+      for (let r = range[0]; r <= range[2]; r++) {
+        for (let c = range[1]; c <= range[3]; c++) {
+          const val = getNumericValue(data[r]?.[c]);
+          if (val < min) min = val;
+        }
+      }
+      return min === Infinity ? 0 : min;
+    }
+    
+    // Handle MAX
+    const maxMatch = expr.match(/^MAX\(([A-Z]+\d+):([A-Z]+\d+)\)$/);
+    if (maxMatch) {
+      const range = parseRange(`${maxMatch[1]}:${maxMatch[2]}`);
+      if (!range) return '#REF!';
+      let max = -Infinity;
+      for (let r = range[0]; r <= range[2]; r++) {
+        for (let c = range[1]; c <= range[3]; c++) {
+          const val = getNumericValue(data[r]?.[c]);
+          if (val > max) max = val;
+        }
+      }
+      return max === -Infinity ? 0 : max;
+    }
+    
+    // Handle COUNT
+    const countMatch = expr.match(/^COUNT\(([A-Z]+\d+):([A-Z]+\d+)\)$/);
+    if (countMatch) {
+      const range = parseRange(`${countMatch[1]}:${countMatch[2]}`);
+      if (!range) return '#REF!';
+      let count = 0;
+      for (let r = range[0]; r <= range[2]; r++) {
+        for (let c = range[1]; c <= range[3]; c++) {
+          const cell = data[r]?.[c];
+          if (cell?.value !== undefined && cell.value !== '' && !isNaN(Number(cell.value))) {
+            count++;
+          }
+        }
+      }
+      return count;
+    }
+    
+    // Handle simple arithmetic with cell references (e.g., =B2*C2)
+    let evalExpr = expr;
+    const cellRefs = expr.match(/[A-Z]+\d+/g) || [];
+    for (const ref of cellRefs) {
+      const pos = parseCellRef(ref);
+      if (pos) {
+        const val = getNumericValue(data[pos[0]]?.[pos[1]]);
+        evalExpr = evalExpr.replace(ref, String(val));
+      }
+    }
+    
+    // Safe eval for basic math
+    if (/^[\d\s+\-*/().]+$/.test(evalExpr)) {
+      const result = Function('"use strict"; return (' + evalExpr + ')')();
+      return Math.round(result * 100) / 100;
+    }
+    
+    return formula;
+  } catch (e) {
+    return '#ERROR!';
+  }
+};
 
 export default function SpreadsheetPage() {
-  const [sheetData, setSheetData] = useState<(string | number)[][]>(createEmptyData(50, 26));
+  const [sheetData, setSheetData] = useState<Matrix>(createEmptyData(30, 15));
   const [showTemplates, setShowTemplates] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  const [key, setKey] = useState(0); // Force re-render when loading templates
+  const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
 
-  const loadTemplate = (template: typeof spreadsheetTemplates[0]) => {
-    // Pad template data to minimum dimensions
-    const paddedData = [...template.data];
-    while (paddedData.length < 50) {
-      paddedData.push(Array(26).fill(''));
-    }
-    // Ensure each row has 26 columns
-    const normalizedData = paddedData.map(row => {
-      const newRow = [...row];
-      while (newRow.length < 26) {
-        newRow.push('');
-      }
-      return newRow;
+  // Compute displayed data with formulas evaluated
+  const displayData = useMemo(() => {
+    return sheetData.map((row, rowIdx) =>
+      row.map((cell, colIdx) => {
+        if (!cell || cell.value === undefined) return cell;
+        const strVal = String(cell.value);
+        if (strVal.startsWith('=')) {
+          const result = evaluateFormula(strVal, sheetData);
+          return { ...cell, value: result };
+        }
+        return cell;
+      })
+    );
+  }, [sheetData]);
+
+  // Get formula for selected cell
+  const selectedFormula = useMemo(() => {
+    if (!selectedCell) return '';
+    const cell = sheetData[selectedCell.row]?.[selectedCell.col];
+    return cell?.value !== undefined ? String(cell.value) : '';
+  }, [selectedCell, sheetData]);
+
+  const loadTemplate = useCallback((template: typeof spreadsheetTemplates[0]) => {
+    // Pad template to 30x15
+    const padded: Matrix = createEmptyData(30, 15);
+    template.data.forEach((row, r) => {
+      row.forEach((cell, c) => {
+        if (r < 30 && c < 15) {
+          padded[r][c] = cell;
+        }
+      });
     });
-    
-    setSheetData(normalizedData);
-    setKey(prev => prev + 1); // Force re-render
+    setSheetData(padded);
     setShowTemplates(false);
     toast.success(`Loaded: ${template.name}`);
-  };
+  }, []);
 
-  const clearSheet = () => {
-    setSheetData(createEmptyData(50, 26));
-    setKey(prev => prev + 1); // Force re-render
+  const clearSheet = useCallback(() => {
+    setSheetData(createEmptyData(30, 15));
     toast.success('Sheet cleared');
-  };
+  }, []);
 
   const handleSave = async () => {
     try {
@@ -289,6 +282,16 @@ export default function SpreadsheetPage() {
     }
   };
 
+  const handleChange = useCallback((newData: Matrix) => {
+    setSheetData(newData);
+  }, []);
+
+  const handleSelect = useCallback((selection: any) => {
+    if (selection && selection.length > 0 && selection[0]) {
+      setSelectedCell({ row: selection[0].row, col: selection[0].column });
+    }
+  }, []);
+
   return (
     <>
       <Head>
@@ -296,77 +299,42 @@ export default function SpreadsheetPage() {
       </Head>
 
       <style jsx global>{`
-        .jspreadsheet-container {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        .Spreadsheet {
+          --background-color: white;
+          --header-background-color: #f1f5f9;
+          --border-color: #e2e8f0;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
         }
-        .jexcel {
-          border: none !important;
-        }
-        .jexcel_content {
-          background: white;
-        }
-        .jexcel td {
-          border-color: #e2e8f0 !important;
-        }
-        .jexcel thead td {
+        .Spreadsheet__header {
           background: #f1f5f9 !important;
           color: #475569 !important;
           font-weight: 600 !important;
         }
-        .jexcel tbody tr:first-child td {
-          font-weight: 500;
+        .Spreadsheet__cell {
+          min-width: 80px !important;
+          height: 28px !important;
+          border-color: #e2e8f0 !important;
         }
-        .jexcel td.highlight {
+        .Spreadsheet__cell--selected {
+          box-shadow: inset 0 0 0 2px #3b82f6 !important;
+          background: #eff6ff !important;
+        }
+        .Spreadsheet__cell input {
+          font-size: 14px !important;
+        }
+        .Spreadsheet__data-viewer {
+          padding: 4px 8px !important;
+          font-size: 14px !important;
+        }
+        .Spreadsheet__data-editor input {
+          padding: 4px 8px !important;
+          font-size: 14px !important;
+        }
+        .Spreadsheet__active-cell {
           background: #dbeafe !important;
         }
-        .jexcel td.highlight-left {
-          border-left: 2px solid #3b82f6 !important;
-        }
-        .jexcel td.highlight-right {
-          border-right: 2px solid #3b82f6 !important;
-        }
-        .jexcel td.highlight-top {
-          border-top: 2px solid #3b82f6 !important;
-        }
-        .jexcel td.highlight-bottom {
-          border-bottom: 2px solid #3b82f6 !important;
-        }
-        .jexcel_toolbar {
-          background: #f8fafc !important;
-          border-bottom: 1px solid #e2e8f0 !important;
-        }
-        .jexcel > thead > tr > td {
-          padding: 8px 4px !important;
-        }
-        .jexcel > tbody > tr > td {
-          padding: 6px 8px !important;
-        }
-        .jexcel_container {
-          box-shadow: none !important;
-        }
-        .jexcel_pagination {
-          background: #f8fafc !important;
-        }
-        .jexcel_search {
-          background: white !important;
-          border: 1px solid #e2e8f0 !important;
-          border-radius: 4px !important;
-        }
-        .jcontextmenu {
-          background: #1e293b !important;
-          border: 1px solid #334155 !important;
-          border-radius: 8px !important;
-          box-shadow: 0 10px 25px rgba(0,0,0,0.3) !important;
-        }
-        .jcontextmenu > div {
-          color: #e2e8f0 !important;
-          padding: 8px 16px !important;
-        }
-        .jcontextmenu > div:hover {
-          background: #334155 !important;
-        }
-        .jcontextmenu hr {
-          border-color: #475569 !important;
+        .Spreadsheet__table {
+          border-collapse: collapse !important;
         }
       `}</style>
 
@@ -376,7 +344,7 @@ export default function SpreadsheetPage() {
           <div>
             <h1 className="text-2xl font-bold text-white">📊 Spreadsheet</h1>
             <p className="text-slate-400 mt-1">
-              Practice Excel functions for Module 3 - Full spreadsheet with formulas
+              Practice Excel functions for Module 3
             </p>
           </div>
           <div className="flex items-center space-x-3 mt-4 sm:mt-0">
@@ -438,52 +406,63 @@ export default function SpreadsheetPage() {
           </div>
         </div>
 
+        {/* Formula Bar */}
+        <div className="mb-2 flex items-center bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+          <div className="px-3 py-2 bg-slate-700 text-slate-300 font-mono text-sm min-w-[60px] text-center border-r border-slate-600">
+            {selectedCell ? `${columnLabels[selectedCell.col]}${selectedCell.row + 1}` : '—'}
+          </div>
+          <div className="flex-1 px-3 py-2 text-white font-mono text-sm">
+            {selectedFormula || ''}
+          </div>
+        </div>
+
         {/* Help Panel */}
         {showHelp && (
           <div className="mb-4 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-4 max-h-60 overflow-y-auto">
             <h3 className="font-semibold text-white mb-3">
-              Available Functions & Features
+              Supported Functions
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
               <div>
-                <h4 className="font-medium text-emerald-400 mb-1">Math Functions</h4>
+                <h4 className="font-medium text-emerald-400 mb-1">Math</h4>
                 <p className="text-slate-400">
-                  =SUM(A1:A10), =ROUND(A1,2), Basic math (+, -, *, /)
+                  =SUM(A1:A10), Basic math (+, -, *, /)
                 </p>
               </div>
               <div>
                 <h4 className="font-medium text-blue-400 mb-1">Statistical</h4>
                 <p className="text-slate-400">
-                  =AVERAGE(), =COUNT(), =COUNTA(), =COUNTIF()
+                  =AVERAGE(A1:A10), =COUNT(A1:A10)
                 </p>
               </div>
               <div>
                 <h4 className="font-medium text-purple-400 mb-1">Min/Max</h4>
                 <p className="text-slate-400">
-                  =MIN(), =MAX(), =LARGE(), =SMALL()
+                  =MIN(A1:A10), =MAX(A1:A10)
                 </p>
               </div>
               <div>
-                <h4 className="font-medium text-amber-400 mb-1">Logic</h4>
+                <h4 className="font-medium text-amber-400 mb-1">References</h4>
                 <p className="text-slate-400">
-                  =IF(), =AND(), =OR(), =NOT()
+                  =A1+B1, =A1*2, Cell references
                 </p>
               </div>
             </div>
             <div className="mt-3 pt-3 border-t border-slate-700">
               <p className="text-xs text-slate-500">
-                <strong>Features:</strong> Click to select • Double-click to edit • Drag to select range • Right-click for context menu • Ctrl+C/V for copy/paste • Drag cell corner to fill
+                <strong>Tips:</strong> Click a cell to select • Type to enter data • Start with = for formulas • Press Enter to confirm
               </p>
             </div>
           </div>
         )}
 
         {/* Spreadsheet Container */}
-        <div className="h-[calc(100%-120px)] bg-white rounded-xl overflow-hidden shadow-lg">
-          <DynamicSpreadsheet 
-            key={key}
-            initialData={sheetData}
-            onDataChange={setSheetData}
+        <div className="h-[calc(100%-160px)] bg-white rounded-xl overflow-auto shadow-lg">
+          <Spreadsheet
+            data={displayData}
+            onChange={handleChange}
+            onSelect={handleSelect}
+            columnLabels={columnLabels}
           />
         </div>
       </div>

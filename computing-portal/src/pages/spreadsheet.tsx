@@ -197,7 +197,7 @@ export default function SpreadsheetPage() {
                 <FiChevronDown className="ml-2" />
               </button>
               {showTemplates && (
-                <div className="absolute right-0 mt-2 w-72 bg-slate-800 rounded-lg shadow-lg border border-slate-700 z-10">
+                <div className="absolute right-0 mt-2 w-72 bg-slate-800 rounded-lg shadow-xl border border-slate-700 z-50">
                   {spreadsheetTemplates.map((template, index) => (
                     <button
                       key={index}

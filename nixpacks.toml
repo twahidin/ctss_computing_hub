@@ -1,0 +1,23 @@
+[providers]
+node = true
+
+[variables]
+NODE_VERSION = "18.x"
+
+[phases.setup]
+nixPkgs = ["nodejs-18_x", "npm-8_x"]
+
+[phases.install]
+cmds = [
+  "cd computing-portal",
+  "npm ci --production=false"
+]
+
+[phases.build]
+cmds = [
+  "cd computing-portal",
+  "npm run build"
+]
+
+[start]
+cmd = "cd computing-portal && npm start"

@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+buildCommand = "cd computing-portal && npm ci && npm run build"
+
+[deploy]
+startCommand = "cd computing-portal && npm start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10

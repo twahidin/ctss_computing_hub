@@ -1,13 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
-import { FiSave, FiDownload, FiUpload, FiHelpCircle, FiChevronDown } from 'react-icons/fi';
+import { FiSave, FiHelpCircle, FiChevronDown, FiAlertCircle } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 // Dynamically import FortuneSheet to avoid SSR issues
 const Workbook = dynamic(
   () => import('@fortune-sheet/react').then((mod) => mod.Workbook),
-  { ssr: false }
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full bg-slate-800/50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+          <p className="text-slate-400">Loading spreadsheet...</p>
+        </div>
+      </div>
+    ),
+  }
 );
 
 // Sample data templates for 7155 syllabus exercises
@@ -164,6 +174,13 @@ export default function SpreadsheetPage() {
   ]);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  // Ensure we're on the client side
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const loadTemplate = (template: typeof spreadsheetTemplates[0]) => {
     // Add config property to each sheet if missing
@@ -203,8 +220,8 @@ export default function SpreadsheetPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">📊 Spreadsheet</h1>
-            <p className="text-gray-600 mt-1">
+            <h1 className="text-2xl font-bold text-white">📊 Spreadsheet</h1>
+            <p className="text-slate-400 mt-1">
               Practice Excel functions for Module 3
             </p>
           </div>
@@ -312,11 +329,44 @@ export default function SpreadsheetPage() {
         )}
 
         {/* Spreadsheet Container */}
-        <div className="fortune-sheet-container h-[calc(100%-120px)] bg-white">
-          <Workbook
-            data={sheetData}
-            onChange={(data: any) => setSheetData(data)}
-          />
+        <div className="fortune-sheet-container h-[calc(100%-120px)] bg-white rounded-xl overflow-hidden">
+          {hasError ? (
+            <div className="flex items-center justify-center h-full bg-slate-800/50">
+              <div className="text-center p-8">
+                <FiAlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-white mb-2">Spreadsheet Error</h3>
+                <p className="text-slate-400 mb-4">There was an error loading the spreadsheet component.</p>
+                <button
+                  onClick={() => {
+                    setHasError(false);
+                    window.location.reload();
+                  }}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500"
+                >
+                  Reload Page
+                </button>
+              </div>
+            </div>
+          ) : isClient ? (
+            <Workbook
+              data={sheetData}
+              onChange={(data: any) => {
+                try {
+                  setSheetData(data);
+                } catch (e) {
+                  console.error('Spreadsheet error:', e);
+                  setHasError(true);
+                }
+              }}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full bg-slate-800/50">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+                <p className="text-slate-400">Loading spreadsheet...</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>

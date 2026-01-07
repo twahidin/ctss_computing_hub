@@ -135,8 +135,27 @@ const spreadsheetTemplates = [
   },
 ];
 
+// Type for cell data
+interface CellValue {
+  v: string | number;
+  m: string;
+  ct?: { fa: string; t: string };
+}
+
+interface CellData {
+  r: number;
+  c: number;
+  v: CellValue;
+}
+
+interface SheetData {
+  name: string;
+  celldata: CellData[];
+  config: Record<string, unknown>;
+}
+
 export default function SpreadsheetPage() {
-  const [sheetData, setSheetData] = useState([
+  const [sheetData, setSheetData] = useState<SheetData[]>([
     {
       name: 'Sheet1',
       celldata: [],
@@ -148,8 +167,9 @@ export default function SpreadsheetPage() {
 
   const loadTemplate = (template: typeof spreadsheetTemplates[0]) => {
     // Add config property to each sheet if missing
-    const dataWithConfig = template.data.map(sheet => ({
-      ...sheet,
+    const dataWithConfig: SheetData[] = template.data.map(sheet => ({
+      name: sheet.name,
+      celldata: sheet.celldata as CellData[],
       config: {},
     }));
     setSheetData(dataWithConfig);

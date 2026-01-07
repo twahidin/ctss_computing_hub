@@ -110,12 +110,17 @@ async function handleUpdateSchool(req: AuthenticatedRequest, res: NextApiRespons
 
     // Check for duplicate name/code if changing them
     if (updateData.schoolName || updateData.schoolCode) {
+      const orConditions: { schoolName?: string; schoolCode?: string }[] = [];
+      if (updateData.schoolName) {
+        orConditions.push({ schoolName: updateData.schoolName });
+      }
+      if (updateData.schoolCode) {
+        orConditions.push({ schoolCode: updateData.schoolCode });
+      }
+      
       const existingSchool = await School.findOne({
         _id: { $ne: id },
-        $or: [
-          updateData.schoolName ? { schoolName: updateData.schoolName } : null,
-          updateData.schoolCode ? { schoolCode: updateData.schoolCode } : null,
-        ].filter(Boolean),
+        $or: orConditions,
       });
 
       if (existingSchool) {

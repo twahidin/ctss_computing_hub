@@ -16,7 +16,7 @@ const colToLetter = (col: number): string => {
 };
 
 // Sample data templates for 7155 syllabus exercises
-const spreadsheetTemplates = [
+const spreadsheetTemplates: Array<{ name: string; description: string; data: Record<string, { value: string; formula?: string }> }> = [
   {
     name: 'VLOOKUP Practice',
     description: 'Practice using VLOOKUP for exact matching',
@@ -137,13 +137,15 @@ interface CellData {
   formula?: string;
 }
 
+type TemplateData = Record<string, CellData>;
+
 export default function SpreadsheetPage() {
-  const [sheetData, setSheetData] = useState<Record<string, CellData>>({});
+  const [sheetData, setSheetData] = useState<TemplateData>({});
   const [showTemplates, setShowTemplates] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
-  const loadTemplate = (template: typeof spreadsheetTemplates[0]) => {
-    setSheetData(template.data);
+  const loadTemplate = (template: { name: string; description: string; data: TemplateData }) => {
+    setSheetData({ ...template.data });
     setShowTemplates(false);
     toast.success(`Loaded: ${template.name}`);
   };

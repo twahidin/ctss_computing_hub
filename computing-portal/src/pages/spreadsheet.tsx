@@ -746,18 +746,19 @@ const spreadsheetTemplates: { name: string; description: string; category: strin
   // ===== CELL REFERENCES (3.1.1) =====
   {
     name: 'Cell References Demo',
-    description: 'Relative ($A1), Absolute ($A$1), Mixed (A$1, $A1)',
+    description: 'Relative (A1), Absolute ($A$1), Mixed (A$1, $A1)',
     category: '3.1.1 References',
     data: {
       'A1': { value: '--- CELL REFERENCES ---' },
       'A2': { value: 'Base Value:' }, 'B2': { value: '10' },
       'A3': { value: 'Multiplier:' }, 'B3': { value: '2' },
-      'A5': { value: 'Type' }, 'B5': { value: 'Formula' }, 'C5': { value: 'Result' }, 'D5': { value: 'Explanation' },
-      'A6': { value: 'Relative' }, 'B6': { value: '=B2*B3' }, 'C6': { value: '=B2*B3' }, 'D6': { value: 'Both adjust when copied' },
-      'A7': { value: 'Absolute' }, 'B7': { value: '=$B$2*$B$3' }, 'C7': { value: '=$B$2*$B$3' }, 'D7': { value: 'Neither adjusts when copied' },
-      'A8': { value: 'Mixed Col' }, 'B8': { value: '=$B2*B3' }, 'C8': { value: '=$B2*B3' }, 'D8': { value: 'Column B stays fixed' },
-      'A9': { value: 'Mixed Row' }, 'B9': { value: '=B$2*B3' }, 'C9': { value: '=B$2*B3' }, 'D9': { value: 'Row 2 stays fixed' },
+      'A5': { value: 'Type' }, 'B5': { value: 'Formula (text)' }, 'C5': { value: 'Result' }, 'D5': { value: 'Explanation' },
+      'A6': { value: 'Relative' }, 'B6': { value: 'B2*B3' }, 'C6': { value: '=B2*B3' }, 'D6': { value: 'Both adjust when copied' },
+      'A7': { value: 'Absolute' }, 'B7': { value: '$B$2*$B$3' }, 'C7': { value: '=$B$2*$B$3' }, 'D7': { value: 'Neither adjusts when copied' },
+      'A8': { value: 'Mixed Col' }, 'B8': { value: '$B2*B3' }, 'C8': { value: '=$B2*B3' }, 'D8': { value: 'Column B stays fixed' },
+      'A9': { value: 'Mixed Row' }, 'B9': { value: 'B$2*B3' }, 'C9': { value: '=B$2*B3' }, 'D9': { value: 'Row 2 stays fixed' },
       'A11': { value: '>>> Try copying C6:C9 down to see how formulas adjust!' },
+      'A12': { value: '>>> Click a cell to see its formula in the formula bar above' },
     },
   },
   {
@@ -827,13 +828,13 @@ const spreadsheetTemplates: { name: string; description: string; category: strin
       'A5': { value: 'Diana' }, 'B5': { value: '68' },
       'A6': { value: 'Eve' }, 'B6': { value: '72' },
       'D1': { value: 'Function' }, 'E1': { value: 'Formula' }, 'F1': { value: 'Result' },
-      'D2': { value: 'SUM' }, 'E2': { value: '=SUM(B2:B6)' }, 'F2': { value: '=SUM(B2:B6)' },
-      'D3': { value: 'AVERAGE' }, 'E3': { value: '=AVERAGE(B2:B6)' }, 'F3': { value: '=AVERAGE(B2:B6)' },
-      'D4': { value: 'COUNT' }, 'E4': { value: '=COUNT(B2:B6)' }, 'F4': { value: '=COUNT(B2:B6)' },
-      'D5': { value: 'MIN' }, 'E5': { value: '=MIN(B2:B6)' }, 'F5': { value: '=MIN(B2:B6)' },
-      'D6': { value: 'MAX' }, 'E6': { value: '=MAX(B2:B6)' }, 'F6': { value: '=MAX(B2:B6)' },
-      'D7': { value: 'MEDIAN' }, 'E7': { value: '=MEDIAN(B2:B6)' }, 'F7': { value: '=MEDIAN(B2:B6)' },
-      'D8': { value: 'MODE.SNGL' }, 'E8': { value: '=MODE.SNGL(B2:B6)' }, 'F8': { value: '=MODE.SNGL(B2:B6)' },
+      'D2': { value: 'SUM' }, 'E2': { value: 'SUM(B2:B6)' }, 'F2': { value: '=SUM(B2:B6)' },
+      'D3': { value: 'AVERAGE' }, 'E3': { value: 'AVERAGE(B2:B6)' }, 'F3': { value: '=AVERAGE(B2:B6)' },
+      'D4': { value: 'COUNT' }, 'E4': { value: 'COUNT(B2:B6)' }, 'F4': { value: '=COUNT(B2:B6)' },
+      'D5': { value: 'MIN' }, 'E5': { value: 'MIN(B2:B6)' }, 'F5': { value: '=MIN(B2:B6)' },
+      'D6': { value: 'MAX' }, 'E6': { value: 'MAX(B2:B6)' }, 'F6': { value: '=MAX(B2:B6)' },
+      'D7': { value: 'MEDIAN' }, 'E7': { value: 'MEDIAN(B2:B6)' }, 'F7': { value: '=MEDIAN(B2:B6)' },
+      'D8': { value: 'MODE.SNGL' }, 'E8': { value: 'MODE.SNGL(B2:B6)' }, 'F8': { value: '=MODE.SNGL(B2:B6)' },
     },
   },
   {
@@ -843,11 +844,11 @@ const spreadsheetTemplates: { name: string; description: string; category: strin
     data: {
       'A1': { value: 'Number' }, 'B1': { value: '3.14159' },
       'A3': { value: 'Function' }, 'B3': { value: 'Formula' }, 'C3': { value: 'Result' }, 'D3': { value: 'Description' },
-      'A4': { value: 'ROUND' }, 'B4': { value: '=ROUND(B1,2)' }, 'C4': { value: '=ROUND(B1,2)' }, 'D4': { value: 'Round to 2 decimals' },
-      'A5': { value: 'ROUNDUP' }, 'B5': { value: '=ROUNDUP(B1,2)' }, 'C5': { value: '=ROUNDUP(B1,2)' }, 'D5': { value: 'Always round up' },
-      'A6': { value: 'ROUNDDOWN' }, 'B6': { value: '=ROUNDDOWN(B1,2)' }, 'C6': { value: '=ROUNDDOWN(B1,2)' }, 'D6': { value: 'Always round down' },
-      'A7': { value: 'CEILING' }, 'B7': { value: '=CEILING.MATH(B1,1)' }, 'C7': { value: '=CEILING.MATH(B1,1)' }, 'D7': { value: 'Round up to nearest 1' },
-      'A8': { value: 'FLOOR' }, 'B8': { value: '=FLOOR.MATH(B1,1)' }, 'C8': { value: '=FLOOR.MATH(B1,1)' }, 'D8': { value: 'Round down to nearest 1' },
+      'A4': { value: 'ROUND' }, 'B4': { value: 'ROUND(B1,2)' }, 'C4': { value: '=ROUND(B1,2)' }, 'D4': { value: 'Round to 2 decimals' },
+      'A5': { value: 'ROUNDUP' }, 'B5': { value: 'ROUNDUP(B1,2)' }, 'C5': { value: '=ROUNDUP(B1,2)' }, 'D5': { value: 'Always round up' },
+      'A6': { value: 'ROUNDDOWN' }, 'B6': { value: 'ROUNDDOWN(B1,2)' }, 'C6': { value: '=ROUNDDOWN(B1,2)' }, 'D6': { value: 'Always round down' },
+      'A7': { value: 'CEILING' }, 'B7': { value: 'CEILING.MATH(B1,1)' }, 'C7': { value: '=CEILING.MATH(B1,1)' }, 'D7': { value: 'Round up to nearest 1' },
+      'A8': { value: 'FLOOR' }, 'B8': { value: 'FLOOR.MATH(B1,1)' }, 'C8': { value: '=FLOOR.MATH(B1,1)' }, 'D8': { value: 'Round down to nearest 1' },
     },
   },
   {
@@ -858,11 +859,11 @@ const spreadsheetTemplates: { name: string; description: string; category: strin
       'A1': { value: 'Value A' }, 'B1': { value: '16' },
       'A2': { value: 'Value B' }, 'B2': { value: '3' },
       'A4': { value: 'Function' }, 'B4': { value: 'Formula' }, 'C4': { value: 'Result' },
-      'A5': { value: 'SQRT' }, 'B5': { value: '=SQRT(B1)' }, 'C5': { value: '=SQRT(B1)' },
-      'A6': { value: 'POWER' }, 'B6': { value: '=POWER(B1,B2)' }, 'C6': { value: '=POWER(B1,B2)' },
-      'A7': { value: 'Exponent ^' }, 'B7': { value: '=B1^B2' }, 'C7': { value: '=B1^B2' },
-      'A8': { value: 'MOD' }, 'B8': { value: '=MOD(17,5)' }, 'C8': { value: '=MOD(17,5)' },
-      'A9': { value: 'QUOTIENT' }, 'B9': { value: '=QUOTIENT(17,5)' }, 'C9': { value: '=QUOTIENT(17,5)' },
+      'A5': { value: 'SQRT' }, 'B5': { value: 'SQRT(B1)' }, 'C5': { value: '=SQRT(B1)' },
+      'A6': { value: 'POWER' }, 'B6': { value: 'POWER(B1,B2)' }, 'C6': { value: '=POWER(B1,B2)' },
+      'A7': { value: 'Exponent ^' }, 'B7': { value: 'B1^B2' }, 'C7': { value: '=B1^B2' },
+      'A8': { value: 'MOD' }, 'B8': { value: 'MOD(17,5)' }, 'C8': { value: '=MOD(17,5)' },
+      'A9': { value: 'QUOTIENT' }, 'B9': { value: 'QUOTIENT(17,5)' }, 'C9': { value: '=QUOTIENT(17,5)' },
     },
   },
   {
@@ -926,9 +927,9 @@ const spreadsheetTemplates: { name: string; description: string; category: strin
     data: {
       'A1': { value: '--- RANDOM NUMBERS ---' },
       'A3': { value: 'Function' }, 'B3': { value: 'Formula' }, 'C3': { value: 'Result' }, 'D3': { value: 'Description' },
-      'A4': { value: 'RAND' }, 'B4': { value: '=RAND()' }, 'C4': { value: '=RAND()' }, 'D4': { value: 'Random 0-1' },
-      'A5': { value: 'RANDBETWEEN' }, 'B5': { value: '=RANDBETWEEN(1,100)' }, 'C5': { value: '=RANDBETWEEN(1,100)' }, 'D5': { value: 'Random 1-100' },
-      'A6': { value: 'Dice Roll' }, 'B6': { value: '=RANDBETWEEN(1,6)' }, 'C6': { value: '=RANDBETWEEN(1,6)' }, 'D6': { value: 'Random 1-6' },
+      'A4': { value: 'RAND' }, 'B4': { value: 'RAND()' }, 'C4': { value: '=RAND()' }, 'D4': { value: 'Random 0-1' },
+      'A5': { value: 'RANDBETWEEN' }, 'B5': { value: 'RANDBETWEEN(1,100)' }, 'C5': { value: '=RANDBETWEEN(1,100)' }, 'D5': { value: 'Random 1-100' },
+      'A6': { value: 'Dice Roll' }, 'B6': { value: 'RANDBETWEEN(1,6)' }, 'C6': { value: '=RANDBETWEEN(1,6)' }, 'D6': { value: 'Random 1-6' },
       'A8': { value: '>>> Press F9 or edit any cell to regenerate random numbers' },
     },
   },
@@ -941,13 +942,13 @@ const spreadsheetTemplates: { name: string; description: string; category: strin
       'A1': { value: 'Full Name' }, 'B1': { value: 'John Smith' },
       'A2': { value: 'Email' }, 'B2': { value: 'john@example.com' },
       'A4': { value: 'Function' }, 'B4': { value: 'Formula' }, 'C4': { value: 'Result' }, 'D4': { value: 'Description' },
-      'A5': { value: 'LEFT' }, 'B5': { value: '=LEFT(B1,4)' }, 'C5': { value: '=LEFT(B1,4)' }, 'D5': { value: 'First 4 chars' },
-      'A6': { value: 'RIGHT' }, 'B6': { value: '=RIGHT(B1,5)' }, 'C6': { value: '=RIGHT(B1,5)' }, 'D6': { value: 'Last 5 chars' },
-      'A7': { value: 'MID' }, 'B7': { value: '=MID(B1,6,5)' }, 'C7': { value: '=MID(B1,6,5)' }, 'D7': { value: 'From pos 6, 5 chars' },
-      'A8': { value: 'LEN' }, 'B8': { value: '=LEN(B1)' }, 'C8': { value: '=LEN(B1)' }, 'D8': { value: 'Text length' },
-      'A9': { value: 'CONCAT' }, 'B9': { value: '=CONCAT(B1," - ",B2)' }, 'C9': { value: '=CONCAT(B1," - ",B2)' }, 'D9': { value: 'Join texts' },
-      'A10': { value: 'FIND' }, 'B10': { value: '=FIND("@",B2)' }, 'C10': { value: '=FIND("@",B2)' }, 'D10': { value: 'Position of @' },
-      'A11': { value: 'SEARCH' }, 'B11': { value: '=SEARCH("JOHN",B1)' }, 'C11': { value: '=SEARCH("JOHN",B1)' }, 'D11': { value: 'Case-insensitive' },
+      'A5': { value: 'LEFT' }, 'B5': { value: 'LEFT(B1,4)' }, 'C5': { value: '=LEFT(B1,4)' }, 'D5': { value: 'First 4 chars' },
+      'A6': { value: 'RIGHT' }, 'B6': { value: 'RIGHT(B1,5)' }, 'C6': { value: '=RIGHT(B1,5)' }, 'D6': { value: 'Last 5 chars' },
+      'A7': { value: 'MID' }, 'B7': { value: 'MID(B1,6,5)' }, 'C7': { value: '=MID(B1,6,5)' }, 'D7': { value: 'From pos 6, 5 chars' },
+      'A8': { value: 'LEN' }, 'B8': { value: 'LEN(B1)' }, 'C8': { value: '=LEN(B1)' }, 'D8': { value: 'Text length' },
+      'A9': { value: 'CONCAT' }, 'B9': { value: 'CONCAT(B1," - ",B2)' }, 'C9': { value: '=CONCAT(B1," - ",B2)' }, 'D9': { value: 'Join texts' },
+      'A10': { value: 'FIND' }, 'B10': { value: 'FIND("@",B2)' }, 'C10': { value: '=FIND("@",B2)' }, 'D10': { value: 'Position of @' },
+      'A11': { value: 'SEARCH' }, 'B11': { value: 'SEARCH("JOHN",B1)' }, 'C11': { value: '=SEARCH("JOHN",B1)' }, 'D11': { value: 'Case-insensitive' },
     },
   },
   // ===== LOOKUP FUNCTIONS (3.2.4) =====
@@ -1012,8 +1013,8 @@ const spreadsheetTemplates: { name: string; description: string; category: strin
     data: {
       'A1': { value: '--- DATE FUNCTIONS ---' },
       'A3': { value: 'Function' }, 'B3': { value: 'Formula' }, 'C3': { value: 'Result' },
-      'A4': { value: 'Today' }, 'B4': { value: '=TODAY()' }, 'C4': { value: '=TODAY()' },
-      'A5': { value: 'Now' }, 'B5': { value: '=NOW()' }, 'C5': { value: '=NOW()' },
+      'A4': { value: 'Today' }, 'B4': { value: 'TODAY()' }, 'C4': { value: '=TODAY()' },
+      'A5': { value: 'Now' }, 'B5': { value: 'NOW()' }, 'C5': { value: '=NOW()' },
       'A7': { value: '--- DAYS BETWEEN ---' },
       'A8': { value: 'Start Date:' }, 'B8': { value: '2024-01-15' },
       'A9': { value: 'End Date:' }, 'B9': { value: '2024-03-20' },
@@ -1642,10 +1643,41 @@ export default function SpreadsheetPage() {
 
         {/* Formula Bar */}
         <div className="mb-2 flex items-center bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-          <div className="px-3 py-2 bg-slate-700 text-slate-300 font-mono text-sm min-w-[50px] text-center border-r border-slate-600">
+          <div className="px-3 py-2 bg-slate-700 text-slate-300 font-mono text-sm min-w-[60px] text-center border-r border-slate-600">
             {selectionBounds ? `${getCellId(selectionBounds.minRow, selectionBounds.minCol)}${selectionBounds.minRow !== selectionBounds.maxRow || selectionBounds.minCol !== selectionBounds.maxCol ? ':' + getCellId(selectionBounds.maxRow, selectionBounds.maxCol) : ''}` : '—'}
           </div>
-          <input type="text" value={selectedValue} onChange={(e) => selectedCellId && handleCellChange(selectedCellId, e.target.value)} onFocus={() => selectedCellId && setEditingCell(selectedCellId)} className="flex-1 px-3 py-2 bg-slate-800 text-white font-mono text-sm outline-none" placeholder="Select a cell..." />
+          <div className="px-2 py-2 text-slate-500 text-sm border-r border-slate-600">fx</div>
+          <input 
+            type="text" 
+            value={selectedValue} 
+            onChange={(e) => {
+              if (selectedCellId) {
+                handleCellChange(selectedCellId, e.target.value);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && selectedCellId && selectionBounds) {
+                e.preventDefault();
+                setEditingCell(null);
+                // Move to next row
+                if (selectionBounds.minRow < ROWS - 1) {
+                  setSelection({ 
+                    startRow: selectionBounds.minRow + 1, 
+                    startCol: selectionBounds.minCol, 
+                    endRow: selectionBounds.minRow + 1, 
+                    endCol: selectionBounds.minCol 
+                  });
+                }
+                gridRef.current?.focus();
+              } else if (e.key === 'Escape') {
+                setEditingCell(null);
+                gridRef.current?.focus();
+              }
+            }}
+            disabled={!selectedCellId}
+            className="flex-1 px-3 py-2 bg-slate-800 text-white font-mono text-sm outline-none focus:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" 
+            placeholder={selectedCellId ? "Enter value or formula (start with =)" : "Select a cell first..."} 
+          />
         </div>
 
         {/* Help Panel */}

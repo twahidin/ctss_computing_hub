@@ -60,7 +60,9 @@ interface GoalSeekState {
 const getCellId = (row: number, col: number): string => `${COL_LABELS[col]}${row + 1}`;
 
 const parseCellRef = (ref: string): [number, number] | null => {
-  const match = ref.match(/^([A-Z]+)(\d+)$/);
+  // Strip $ signs for absolute/mixed references before parsing
+  const cleanRef = ref.replace(/\$/g, '');
+  const match = cleanRef.match(/^([A-Z]+)(\d+)$/);
   if (!match) return null;
   const col = match[1].charCodeAt(0) - 65;
   const row = parseInt(match[2]) - 1;
@@ -621,9 +623,9 @@ const evaluateFormula = (formula: string, data: SheetData, visited: Set<string> 
       return parts.map(p => resolveValue(p.trim(), data, visited).replace(/^["']|["']$/g, '')).join('');
     }
 
-    // Replace cell references with values
+    // Replace cell references with values (including absolute/mixed refs with $)
     let evalExpr = expr.toUpperCase();
-    const cellRefs = evalExpr.match(/[A-Z]+\d+/g) || [];
+    const cellRefs = evalExpr.match(/\$?[A-Z]+\$?\d+/g) || [];
     for (const ref of cellRefs) {
       const pos = parseCellRef(ref);
       if (pos) {
@@ -633,7 +635,9 @@ const evaluateFormula = (formula: string, data: SheetData, visited: Set<string> 
         newVisited.add(id);
         const cellVal = data[id]?.value || '0';
         const resolved = cellVal.startsWith('=') ? evaluateFormula(cellVal, data, newVisited) : cellVal;
-        evalExpr = evalExpr.replace(new RegExp(ref, 'g'), getNumericValue(resolved).toString());
+        // Escape $ signs in regex replacement
+        const escapedRef = ref.replace(/\$/g, '\\$');
+        evalExpr = evalExpr.replace(new RegExp(escapedRef, 'g'), getNumericValue(resolved).toString());
       }
     }
 
@@ -655,14 +659,17 @@ const evaluateFormula = (formula: string, data: SheetData, visited: Set<string> 
   }
 };
 
-// Helper: resolve a value (cell ref or literal)
+// Helper: resolve a value (cell ref or literal) - handles $A$1, $A1, A$1 formats
 const resolveValue = (val: string, data: SheetData, visited: Set<string>): string => {
-  const trimmed = val.trim();
-  const ref = parseCellRef(trimmed.toUpperCase());
-  if (ref) {
-    return getCellValue(getCellId(ref[0], ref[1]), data, visited);
+  const trimmed = val.trim().toUpperCase();
+  // Check if it looks like a cell reference (with or without $ signs)
+  if (/^\$?[A-Z]+\$?\d+$/.test(trimmed)) {
+    const ref = parseCellRef(trimmed);
+    if (ref) {
+      return getCellValue(getCellId(ref[0], ref[1]), data, visited);
+    }
   }
-  return trimmed;
+  return val.trim();
 };
 
 // Helper: evaluate a condition

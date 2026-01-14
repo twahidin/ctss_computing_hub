@@ -10,7 +10,7 @@ export default function Home() {
     if (status === 'loading') return;
     
     if (session) {
-      router.replace('/dashboard');
+      router.replace('/python');
     } else {
       router.replace('/auth/login');
     }

@@ -3,11 +3,8 @@ import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
-  FiHome,
   FiCode,
   FiGrid,
-  FiMessageCircle,
-  FiBook,
   FiUser,
   FiLogOut,
   FiMenu,
@@ -38,11 +35,8 @@ export default function Layout({ children }: LayoutProps) {
   // Navigation items with role-based access
   const navItems = useMemo<NavItem[]>(() => {
     const items: NavItem[] = [
-      { href: '/dashboard', label: 'Dashboard', icon: FiHome },
       { href: '/python', label: 'Python Lab', icon: FiCode },
       { href: '/spreadsheet', label: 'Spreadsheet', icon: FiGrid },
-      { href: '/tutor', label: 'AI Tutor', icon: FiMessageCircle },
-      { href: '/syllabus', label: 'Syllabus', icon: FiBook },
       { 
         href: '/admin', 
         label: 'Admin Dashboard', 
@@ -114,7 +108,7 @@ export default function Layout({ children }: LayoutProps) {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="p-6 border-b border-slate-700/50">
-            <Link href="/dashboard" className="flex items-center space-x-3">
+            <Link href="/python" className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
                 <span className="text-xl">💻</span>
               </div>
@@ -128,7 +122,7 @@ export default function Layout({ children }: LayoutProps) {
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             {filteredNavItems.map((item) => {
               const isActive = router.pathname === item.href || 
-                (item.href !== '/dashboard' && router.pathname.startsWith(item.href));
+                router.pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.href}

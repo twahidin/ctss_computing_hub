@@ -467,7 +467,7 @@ export default function AdminDashboard() {
                                   {user.profile}
                                 </span>
                               </td>
-                              <td className="py-3 text-slate-400">{user.school || '-'}</td>
+                              <td className="py-3 text-slate-400">{user.schoolName || '-'}</td>
                               <td className="py-3 text-slate-400">{user.class || '-'}</td>
                               <td className="py-3">
                                 <span className={`px-2 py-1 rounded-full text-xs ${

@@ -138,8 +138,9 @@ export interface UserListItem {
   name: string;
   email?: string;
   profile: UserProfile;
-  school?: string;
-  schoolId?: string;
+  school?: string; // ObjectId from database
+  schoolId?: string; // Alternative field name
+  schoolName?: string; // Denormalized school name
   class?: string;
   level?: string;
   approvalStatus: ApprovalStatus;

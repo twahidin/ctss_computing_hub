@@ -252,11 +252,13 @@ export default function AdminDashboard() {
   // Open edit user modal
   const openEditUser = (user: UserListItem) => {
     setEditingUser(user);
+    // The API returns 'school' as the ObjectId string
+    const userSchoolId = user.school || user.schoolId || '';
     setEditUserForm({
       name: user.name,
       email: user.email || '',
       profile: user.profile as UserProfile,
-      schoolId: user.schoolId || '',
+      schoolId: userSchoolId,
       class: user.class || '',
       level: user.level || '',
     });

@@ -50,6 +50,18 @@ export default function AdminDashboard() {
     address: '',
     isActive: true,
   });
+
+  // Edit user state
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserListItem | null>(null);
+  const [editUserForm, setEditUserForm] = useState({
+    name: '',
+    email: '',
+    profile: '' as UserProfile,
+    schoolId: '',
+    class: '',
+    level: '',
+  });
   
   const userProfile = session?.user?.profile as UserProfile;
   const isSuperAdmin = userProfile === 'super_admin';
@@ -79,6 +91,11 @@ export default function AdminDashboard() {
         case 'users':
           const usersRes = await axios.get('/api/admin/users');
           setUsers(usersRes.data.users);
+          // Also load schools for the edit user dropdown (super_admin needs this)
+          if (isSuperAdmin && schools.length === 0) {
+            const schoolsRes = await axios.get('/api/admin/schools');
+            setSchools(schoolsRes.data.schools);
+          }
           break;
         case 'pending':
           const pendingRes = await axios.get('/api/admin/users/pending');
@@ -229,6 +246,57 @@ export default function AdminDashboard() {
       fetchData();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to delete school');
+    }
+  };
+
+  // Open edit user modal
+  const openEditUser = (user: UserListItem) => {
+    setEditingUser(user);
+    setEditUserForm({
+      name: user.name,
+      email: user.email || '',
+      profile: user.profile as UserProfile,
+      schoolId: user.schoolId || '',
+      class: user.class || '',
+      level: user.level || '',
+    });
+    setShowEditUserModal(true);
+  };
+
+  // Handle update user
+  const handleUpdateUser = async () => {
+    if (!editingUser) return;
+
+    try {
+      await axios.put(`/api/admin/users/${editingUser._id}`, {
+        name: editUserForm.name,
+        email: editUserForm.email,
+        profile: editUserForm.profile,
+        schoolId: editUserForm.schoolId || null,
+        class: editUserForm.class,
+        level: editUserForm.level,
+      });
+      toast.success('User updated successfully');
+      setShowEditUserModal(false);
+      setEditingUser(null);
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to update user');
+    }
+  };
+
+  // Handle delete user
+  const handleDeleteUser = async (user: UserListItem) => {
+    if (!confirm(`Are you sure you want to delete "${user.name}" (@${user.username})?\n\nThis action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await axios.delete(`/api/admin/users/${user._id}`);
+      toast.success('User deleted successfully');
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to delete user');
     }
   };
 
@@ -410,15 +478,33 @@ export default function AdminDashboard() {
                               </td>
                               <td className="py-3">
                                 <div className="flex space-x-2">
+                                  {canManageUser(userProfile, user.profile as UserProfile) && (
+                                    <>
+                                      <button
+                                        onClick={() => openEditUser(user)}
+                                        className="px-3 py-1 bg-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-600 transition-colors"
+                                      >
+                                        Edit
+                                      </button>
+                                      {user.profile !== 'super_admin' && (
+                                        <button
+                                          onClick={() => handleDeleteUser(user)}
+                                          className="px-3 py-1 bg-red-600/20 text-red-400 rounded-lg text-sm hover:bg-red-600/30 transition-colors"
+                                        >
+                                          Delete
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
                                   {canResetPassword(userProfile, user.profile as UserProfile) && (
                                     <button
                                       onClick={() => {
                                         setSelectedUser(user);
                                         setShowPasswordModal(true);
                                       }}
-                                      className="px-3 py-1 bg-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-600 transition-colors"
+                                      className="px-3 py-1 bg-indigo-600/20 text-indigo-400 rounded-lg text-sm hover:bg-indigo-600/30 transition-colors"
                                     >
-                                      Reset Password
+                                      Reset PW
                                     </button>
                                   )}
                                 </div>
@@ -815,6 +901,125 @@ export default function AdminDashboard() {
               </button>
               <button
                 onClick={handleUpdateSchool}
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {showEditUserModal && editingUser && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-lg border border-slate-700 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-semibold text-white mb-4">Edit User</h3>
+            <p className="text-slate-400 text-sm mb-4">
+              Editing: <span className="text-white font-medium">@{editingUser.username}</span>
+            </p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={editUserForm.name}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, name: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={editUserForm.email}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              {isSuperAdmin && editingUser.profile !== 'super_admin' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                      Profile/Role
+                    </label>
+                    <select
+                      value={editUserForm.profile}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, profile: e.target.value as UserProfile })}
+                      className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                      <option value="student">Student</option>
+                      <option value="teacher">Teacher</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                      School
+                    </label>
+                    <select
+                      value={editUserForm.schoolId}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, schoolId: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                      <option value="">No School</option>
+                      {schools.map((school) => (
+                        <option key={school._id} value={school._id}>
+                          {school.schoolName} ({school.schoolCode})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Class
+                </label>
+                <input
+                  type="text"
+                  value={editUserForm.class}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, class: e.target.value })}
+                  placeholder="e.g., 4A"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Level
+                </label>
+                <input
+                  type="text"
+                  value={editUserForm.level}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, level: e.target.value })}
+                  placeholder="e.g., Secondary 4"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditUserModal(false);
+                  setEditingUser(null);
+                }}
+                className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateUser}
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
               >
                 Save Changes

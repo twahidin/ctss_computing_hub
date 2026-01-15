@@ -226,3 +226,148 @@ export function canApproveUser(actorProfile: UserProfile, targetProfile: UserPro
   }
   return false;
 }
+
+// Assignment System Types
+export type AssignmentStatus = 'draft' | 'published' | 'archived';
+export type DifficultyLevel = 'easy' | 'medium' | 'hard' | 'mixed';
+export type SubmissionType = 'draft' | 'final';
+export type SubmissionStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'approved' | 'returned';
+export type FeedbackType = 'draft' | 'final';
+export type AbilityLevel = 'below_grade' | 'at_grade' | 'above_grade';
+
+export interface AssignmentQuestion {
+  id: string;
+  question: string;
+  type: 'mcq' | 'short_answer' | 'long_answer' | 'calculation';
+  marks: number;
+  markingScheme?: string;
+  modelAnswer?: string;
+  topic?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
+}
+
+export interface AssignmentData {
+  _id: string;
+  title: string;
+  description?: string;
+  subject: string;
+  topic: string;
+  grade: string;
+  teacher: string;
+  school: string;
+  class: string;
+  learningOutcomes: string[];
+  questions: AssignmentQuestion[];
+  totalMarks: number;
+  dueDate?: string;
+  status: AssignmentStatus;
+  difficulty: DifficultyLevel;
+  knowledgeBasePdf?: string;
+  allowDraftSubmissions: boolean;
+  requiresApproval: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuestionFeedback {
+  questionId: string;
+  questionNumber: number;
+  studentAnswer?: string;
+  feedback: string;
+  strengths?: string[];
+  improvements?: string[];
+  marksAwarded?: number;
+  marksPossible: number;
+  isCorrect?: boolean;
+  canBeImproved?: boolean;
+  suggestedAnswer?: string;
+  topic?: string;
+}
+
+export interface FeedbackData {
+  _id: string;
+  submission: string;
+  student: string;
+  assignment: string;
+  feedbackType: FeedbackType;
+  overallFeedback: string;
+  overallStrengths: string[];
+  overallImprovements: string[];
+  questionFeedback: QuestionFeedback[];
+  totalMarksAwarded?: number;
+  totalMarksPossible?: number;
+  percentage?: number;
+  grade?: string;
+  topicScores?: Record<string, { awarded: number; possible: number; percentage: number }>;
+  teacherModified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubmissionData {
+  _id: string;
+  student: string | { _id: string; username: string; name: string };
+  assignment: string | AssignmentData;
+  submissionType: SubmissionType;
+  pdfUrl: string;
+  pdfFileName: string;
+  status: SubmissionStatus;
+  marksAwarded?: number;
+  marksTotal?: number;
+  percentage?: number;
+  grade?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  teacherComments?: string;
+  returnedAt?: string;
+  submittedAt: string;
+  feedbackGeneratedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LearningProfileData {
+  _id: string;
+  student: string;
+  school: string;
+  overallAbilityLevel: AbilityLevel;
+  subjectPerformance: {
+    subject: string;
+    averageScore: number;
+    totalAssignments: number;
+    completedAssignments: number;
+    topics: {
+      topic: string;
+      subject: string;
+      totalAttempts: number;
+      correctAttempts: number;
+      averageScore: number;
+      trend: 'improving' | 'stable' | 'declining';
+      strengthLevel: 'weak' | 'developing' | 'proficient' | 'strong';
+    }[];
+  }[];
+  recentGrades: {
+    assignmentId: string;
+    subject: string;
+    topic: string;
+    percentage: number;
+    grade: string;
+    date: string;
+  }[];
+  strongTopics: string[];
+  weakTopics: string[];
+  totalSubmissions: number;
+  draftSubmissions: number;
+  finalSubmissions: number;
+}
+
+export interface TeacherAssignmentSummary {
+  assignment: AssignmentData;
+  totalStudents: number;
+  submittedCount: number;
+  pendingCount: number;
+  gradedCount: number;
+  approvedCount: number;
+  averageScore?: number;
+  submissions: SubmissionData[];
+}

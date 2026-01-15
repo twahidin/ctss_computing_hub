@@ -18,3 +18,16 @@ export type { IExercise } from './Exercise';
 
 export { default as ChatHistory } from './ChatHistory';
 export type { IChatHistory, IChatMessage } from './ChatHistory';
+
+// Assignment System Models
+export { default as Assignment } from './Assignment';
+export type { IAssignment, IQuestion, DifficultyLevel, AssignmentStatus } from './Assignment';
+
+export { default as Submission } from './Submission';
+export type { ISubmission, SubmissionType, SubmissionStatus } from './Submission';
+
+export { default as Feedback } from './Feedback';
+export type { IFeedback, IQuestionFeedback, FeedbackType } from './Feedback';
+
+export { default as LearningProfile } from './LearningProfile';
+export type { ILearningProfile, ITopicPerformance, ISubjectPerformance, AbilityLevel } from './LearningProfile';

@@ -11,6 +11,10 @@ import {
   FiX,
   FiSettings,
   FiShield,
+  FiFileText,
+  FiUpload,
+  FiClipboard,
+  FiTrendingUp,
 } from 'react-icons/fi';
 import { UserProfile } from '@/types';
 
@@ -37,6 +41,30 @@ export default function Layout({ children }: LayoutProps) {
     const items: NavItem[] = [
       { href: '/python', label: 'Python Lab', icon: FiCode },
       { href: '/spreadsheet', label: 'Spreadsheet', icon: FiGrid },
+      { 
+        href: '/feedback-help', 
+        label: 'Feedback & Help', 
+        icon: FiFileText,
+        profiles: ['student'],
+      },
+      { 
+        href: '/submission', 
+        label: 'Submit Assignment', 
+        icon: FiUpload,
+        profiles: ['student'],
+      },
+      { 
+        href: '/student/dashboard', 
+        label: 'My Progress', 
+        icon: FiTrendingUp,
+        profiles: ['student'],
+      },
+      { 
+        href: '/teacher/assignments', 
+        label: 'Assignment Dashboard', 
+        icon: FiClipboard,
+        profiles: ['teacher', 'admin', 'super_admin'],
+      },
       { 
         href: '/admin', 
         label: 'Admin Dashboard', 

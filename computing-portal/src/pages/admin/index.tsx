@@ -62,6 +62,16 @@ export default function AdminDashboard() {
     class: '',
     level: '',
   });
+
+  // Edit function state
+  const [showEditFunctionModal, setShowEditFunctionModal] = useState(false);
+  const [editingFunction, setEditingFunction] = useState<FunctionData | null>(null);
+  const [editFunctionForm, setEditFunctionForm] = useState({
+    functionName: '',
+    profileFunctionList: [] as UserProfile[],
+    isActive: true,
+    schoolAccess: [] as string[], // school IDs that have access
+  });
   
   const userProfile = session?.user?.profile as UserProfile;
   const isSuperAdmin = userProfile === 'super_admin';
@@ -109,8 +119,13 @@ export default function AdminDashboard() {
           break;
         case 'functions':
           if (isSuperAdmin || isAdmin) {
-            const functionsRes = await axios.get('/api/admin/functions');
+            // Load both functions and schools to show access info
+            const [functionsRes, schoolsRes] = await Promise.all([
+              axios.get('/api/admin/functions'),
+              axios.get('/api/admin/schools'),
+            ]);
             setFunctions(functionsRes.data.functions);
+            setSchools(schoolsRes.data.schools);
           }
           break;
       }
@@ -300,6 +315,90 @@ export default function AdminDashboard() {
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to delete user');
     }
+  };
+
+  // Open edit function modal
+  const openEditFunction = async (func: FunctionData) => {
+    setEditingFunction(func);
+    
+    // Find which schools have this function in their accessible list
+    const schoolsWithAccess = schools.filter(school => 
+      school.listAccessibleFunctions.includes(func._id)
+    ).map(s => s._id);
+    
+    setEditFunctionForm({
+      functionName: func.functionName,
+      profileFunctionList: [...func.profileFunctionList],
+      isActive: func.isActive,
+      schoolAccess: schoolsWithAccess,
+    });
+    setShowEditFunctionModal(true);
+  };
+
+  // Handle update function
+  const handleUpdateFunction = async () => {
+    if (!editingFunction) return;
+
+    try {
+      // Update the function itself
+      await axios.put(`/api/admin/functions/${editingFunction._id}`, {
+        functionName: editFunctionForm.functionName,
+        profileFunctionList: editFunctionForm.profileFunctionList,
+        isActive: editFunctionForm.isActive,
+      });
+
+      // Update school access - add/remove function from schools' listAccessibleFunctions
+      for (const school of schools) {
+        const shouldHaveAccess = editFunctionForm.schoolAccess.includes(school._id);
+        const currentlyHasAccess = school.listAccessibleFunctions.includes(editingFunction._id);
+        
+        if (shouldHaveAccess && !currentlyHasAccess) {
+          // Add function to school
+          await axios.put(`/api/admin/schools/${school._id}`, {
+            listAccessibleFunctions: [...school.listAccessibleFunctions, editingFunction._id],
+          });
+        } else if (!shouldHaveAccess && currentlyHasAccess) {
+          // Remove function from school
+          await axios.put(`/api/admin/schools/${school._id}`, {
+            listAccessibleFunctions: school.listAccessibleFunctions.filter(id => id !== editingFunction._id),
+          });
+        }
+      }
+
+      toast.success('Function updated successfully');
+      setShowEditFunctionModal(false);
+      setEditingFunction(null);
+      
+      // Refresh both functions and schools data
+      const [functionsRes, schoolsRes] = await Promise.all([
+        axios.get('/api/admin/functions'),
+        axios.get('/api/admin/schools'),
+      ]);
+      setFunctions(functionsRes.data.functions);
+      setSchools(schoolsRes.data.schools);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to update function');
+    }
+  };
+
+  // Toggle profile access for a function
+  const toggleProfileAccess = (profile: UserProfile) => {
+    setEditFunctionForm(prev => {
+      const newList = prev.profileFunctionList.includes(profile)
+        ? prev.profileFunctionList.filter(p => p !== profile)
+        : [...prev.profileFunctionList, profile];
+      return { ...prev, profileFunctionList: newList };
+    });
+  };
+
+  // Toggle school access for a function
+  const toggleSchoolAccess = (schoolId: string) => {
+    setEditFunctionForm(prev => {
+      const newList = prev.schoolAccess.includes(schoolId)
+        ? prev.schoolAccess.filter(id => id !== schoolId)
+        : [...prev.schoolAccess, schoolId];
+      return { ...prev, schoolAccess: newList };
+    });
   };
 
   // Render tabs based on user profile
@@ -588,41 +687,77 @@ export default function AdminDashboard() {
                 <div>
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-semibold text-white">Function Management</h2>
-                    {isSuperAdmin && (
-                      <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors">
-                        + Add Function
-                      </button>
-                    )}
+                    <p className="text-slate-400 text-sm">
+                      Manage which profiles and schools can access each function
+                    </p>
                   </div>
                   
                   {functions.length === 0 ? (
                     <p className="text-slate-400 text-center py-8">No functions configured</p>
                   ) : (
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {functions.map((func) => (
-                        <div
-                          key={func._id}
-                          className="bg-slate-900/50 rounded-xl p-4"
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <h3 className="text-white font-medium">{func.functionName}</h3>
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              func.isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
-                            }`}>
-                              {func.isActive ? 'Active' : 'Inactive'}
-                            </span>
+                      {functions.map((func) => {
+                        const schoolsWithAccess = schools.filter(s => 
+                          s.listAccessibleFunctions.includes(func._id)
+                        ).length;
+                        
+                        return (
+                          <div
+                            key={func._id}
+                            className="bg-slate-900/50 rounded-xl p-4"
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-xl">{func.functionData?.icon || '📦'}</span>
+                                <h3 className="text-white font-medium">{func.functionName}</h3>
+                              </div>
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                func.isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
+                              }`}>
+                                {func.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                            <p className="text-slate-400 text-sm mb-2">
+                              Route: {func.functionData?.route || 'N/A'}
+                            </p>
+                            <div className="text-slate-500 text-xs space-y-1 mb-3">
+                              <p>
+                                <span className="text-slate-400">Profiles:</span>{' '}
+                                {func.profileFunctionList.map(p => (
+                                  <span key={p} className={`inline-block px-1.5 py-0.5 rounded text-xs mr-1 ${
+                                    p === 'super_admin' ? 'bg-purple-500/20 text-purple-300' :
+                                    p === 'admin' ? 'bg-orange-500/20 text-orange-300' :
+                                    p === 'teacher' ? 'bg-blue-500/20 text-blue-300' :
+                                    'bg-slate-500/20 text-slate-300'
+                                  }`}>
+                                    {p}
+                                  </span>
+                                ))}
+                              </p>
+                              <p>
+                                <span className="text-slate-400">Schools:</span>{' '}
+                                <span className="text-indigo-400">{schoolsWithAccess} / {schools.length}</span>
+                              </p>
+                            </div>
+                            {func.isSystemFunction && (
+                              <span className="inline-block mb-3 px-2 py-0.5 bg-purple-500/20 text-purple-300 text-xs rounded">
+                                System Function
+                              </span>
+                            )}
+                            {/* Edit Button */}
+                            {isSuperAdmin && (
+                              <div className="pt-3 border-t border-slate-700/50">
+                                <button
+                                  onClick={() => openEditFunction(func)}
+                                  className="w-full px-3 py-2 bg-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-600 transition-colors"
+                                >
+                                  ✏️ Edit Access
+                                </button>
+                              </div>
+                            )}
                           </div>
-                          <p className="text-slate-400 text-sm mb-2">Code: {func.functionCode}</p>
-                          <p className="text-slate-500 text-xs">
-                            Access: {func.profileFunctionList.join(', ')}
-                          </p>
-                          {func.isSystemFunction && (
-                            <span className="inline-block mt-2 px-2 py-0.5 bg-purple-500/20 text-purple-300 text-xs rounded">
-                              System Function
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1022,6 +1157,166 @@ export default function AdminDashboard() {
               </button>
               <button
                 onClick={handleUpdateUser}
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Function Modal */}
+      {showEditFunctionModal && editingFunction && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-2xl border border-slate-700 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center space-x-3 mb-4">
+              <span className="text-2xl">{editingFunction.functionData?.icon || '📦'}</span>
+              <div>
+                <h3 className="text-xl font-semibold text-white">{editingFunction.functionName}</h3>
+                <p className="text-slate-400 text-sm">Code: {editingFunction.functionCode}</p>
+              </div>
+            </div>
+            
+            <div className="space-y-6">
+              {/* Active Status */}
+              <div className="flex items-center justify-between p-4 bg-slate-900/50 rounded-xl">
+                <div>
+                  <p className="text-white font-medium">Function Status</p>
+                  <p className="text-slate-400 text-sm">Enable or disable this function</p>
+                </div>
+                <button
+                  onClick={() => setEditFunctionForm(prev => ({ ...prev, isActive: !prev.isActive }))}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    editFunctionForm.isActive
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-red-600/20 text-red-400'
+                  }`}
+                >
+                  {editFunctionForm.isActive ? '✓ Active' : '✗ Inactive'}
+                </button>
+              </div>
+
+              {/* Profile Access */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-3">
+                  Profile Access
+                </label>
+                <p className="text-slate-500 text-xs mb-3">
+                  Select which user profiles can access this function
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {(['student', 'teacher', 'admin', 'super_admin'] as UserProfile[]).map((profile) => (
+                    <button
+                      key={profile}
+                      onClick={() => toggleProfileAccess(profile)}
+                      className={`p-3 rounded-xl border-2 transition-all ${
+                        editFunctionForm.profileFunctionList.includes(profile)
+                          ? profile === 'super_admin' ? 'border-purple-500 bg-purple-500/20 text-purple-300' :
+                            profile === 'admin' ? 'border-orange-500 bg-orange-500/20 text-orange-300' :
+                            profile === 'teacher' ? 'border-blue-500 bg-blue-500/20 text-blue-300' :
+                            'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                          : 'border-slate-600 bg-slate-900/50 text-slate-400'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-lg mb-1">
+                          {profile === 'super_admin' ? '👑' : 
+                           profile === 'admin' ? '⚙️' : 
+                           profile === 'teacher' ? '📚' : '🎓'}
+                        </div>
+                        <div className="text-sm font-medium capitalize">
+                          {profile.replace('_', ' ')}
+                        </div>
+                        <div className="text-xs mt-1">
+                          {editFunctionForm.profileFunctionList.includes(profile) ? '✓ Enabled' : 'Disabled'}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* School Access */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-3">
+                  School Access
+                </label>
+                <p className="text-slate-500 text-xs mb-3">
+                  Select which schools can access this function
+                </p>
+                
+                {/* Quick Actions */}
+                <div className="flex space-x-2 mb-3">
+                  <button
+                    onClick={() => setEditFunctionForm(prev => ({ 
+                      ...prev, 
+                      schoolAccess: schools.map(s => s._id) 
+                    }))}
+                    className="px-3 py-1.5 bg-emerald-600/20 text-emerald-400 rounded-lg text-sm hover:bg-emerald-600/30 transition-colors"
+                  >
+                    ✓ Select All
+                  </button>
+                  <button
+                    onClick={() => setEditFunctionForm(prev => ({ ...prev, schoolAccess: [] }))}
+                    className="px-3 py-1.5 bg-red-600/20 text-red-400 rounded-lg text-sm hover:bg-red-600/30 transition-colors"
+                  >
+                    ✗ Deselect All
+                  </button>
+                </div>
+                
+                {schools.length === 0 ? (
+                  <p className="text-slate-400 text-center py-4">No schools configured</p>
+                ) : (
+                  <div className="grid gap-2 max-h-60 overflow-y-auto">
+                    {schools.map((school) => (
+                      <button
+                        key={school._id}
+                        onClick={() => toggleSchoolAccess(school._id)}
+                        className={`p-3 rounded-xl border-2 text-left transition-all ${
+                          editFunctionForm.schoolAccess.includes(school._id)
+                            ? 'border-indigo-500 bg-indigo-500/20'
+                            : 'border-slate-600 bg-slate-900/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className={`font-medium ${
+                              editFunctionForm.schoolAccess.includes(school._id) 
+                                ? 'text-indigo-300' 
+                                : 'text-slate-300'
+                            }`}>
+                              {school.schoolName}
+                            </p>
+                            <p className="text-slate-500 text-xs">{school.schoolCode}</p>
+                          </div>
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                            editFunctionForm.schoolAccess.includes(school._id)
+                              ? 'bg-indigo-500 text-white'
+                              : 'bg-slate-700 text-slate-500'
+                          }`}>
+                            {editFunctionForm.schoolAccess.includes(school._id) ? '✓' : ''}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditFunctionModal(false);
+                  setEditingFunction(null);
+                }}
+                className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateFunction}
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
               >
                 Save Changes

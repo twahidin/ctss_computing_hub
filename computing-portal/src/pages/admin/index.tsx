@@ -38,6 +38,19 @@ export default function AdminDashboard() {
     address: '',
   });
   
+  // Edit school state
+  const [showEditSchoolModal, setShowEditSchoolModal] = useState(false);
+  const [editingSchool, setEditingSchool] = useState<SchoolData | null>(null);
+  const [editSchoolForm, setEditSchoolForm] = useState({
+    schoolName: '',
+    schoolCode: '',
+    listOfClasses: '',
+    listOfLevels: '',
+    contactEmail: '',
+    address: '',
+    isActive: true,
+  });
+  
   const userProfile = session?.user?.profile as UserProfile;
   const isSuperAdmin = userProfile === 'super_admin';
   const isAdmin = userProfile === 'admin';
@@ -163,6 +176,59 @@ export default function AdminDashboard() {
       fetchData();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to create school');
+    }
+  };
+
+  // Open edit school modal
+  const openEditSchool = (school: SchoolData) => {
+    setEditingSchool(school);
+    setEditSchoolForm({
+      schoolName: school.schoolName,
+      schoolCode: school.schoolCode,
+      listOfClasses: school.listOfClasses.join(', '),
+      listOfLevels: school.listOfLevels.join(', '),
+      contactEmail: school.contactEmail || '',
+      address: school.address || '',
+      isActive: school.isActive,
+    });
+    setShowEditSchoolModal(true);
+  };
+
+  // Handle update school
+  const handleUpdateSchool = async () => {
+    if (!editingSchool) return;
+
+    try {
+      await axios.put(`/api/admin/schools/${editingSchool._id}`, {
+        schoolName: editSchoolForm.schoolName,
+        schoolCode: editSchoolForm.schoolCode,
+        listOfClasses: editSchoolForm.listOfClasses.split(',').map(c => c.trim()).filter(c => c),
+        listOfLevels: editSchoolForm.listOfLevels.split(',').map(l => l.trim()).filter(l => l),
+        contactEmail: editSchoolForm.contactEmail,
+        address: editSchoolForm.address,
+        isActive: editSchoolForm.isActive,
+      });
+      toast.success('School updated successfully');
+      setShowEditSchoolModal(false);
+      setEditingSchool(null);
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to update school');
+    }
+  };
+
+  // Handle delete school
+  const handleDeleteSchool = async (school: SchoolData) => {
+    if (!confirm(`Are you sure you want to delete "${school.schoolName}"?\n\nThis action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await axios.delete(`/api/admin/schools/${school._id}`);
+      toast.success('School deleted successfully');
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to delete school');
     }
   };
 
@@ -405,6 +471,23 @@ export default function AdminDashboard() {
                             <p>Classes: {school.listOfClasses.join(', ') || 'None'}</p>
                             <p>Levels: {school.listOfLevels.join(', ') || 'None'}</p>
                           </div>
+                          {/* Edit and Delete Buttons */}
+                          <div className="flex space-x-2 mt-4 pt-3 border-t border-slate-700/50">
+                            <button
+                              onClick={() => openEditSchool(school)}
+                              className="flex-1 px-3 py-2 bg-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-600 transition-colors"
+                            >
+                              ✏️ Edit
+                            </button>
+                            {isSuperAdmin && (
+                              <button
+                                onClick={() => handleDeleteSchool(school)}
+                                className="px-3 py-2 bg-red-600/20 text-red-400 rounded-lg text-sm hover:bg-red-600/30 transition-colors"
+                              >
+                                🗑️ Delete
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -609,6 +692,132 @@ export default function AdminDashboard() {
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
               >
                 Create School
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit School Modal */}
+      {showEditSchoolModal && editingSchool && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-lg border border-slate-700 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-semibold text-white mb-4">Edit School</h3>
+            
+            <div className="space-y-4">
+              {isSuperAdmin && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                      School Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editSchoolForm.schoolName}
+                      onChange={(e) => setEditSchoolForm({ ...editSchoolForm, schoolName: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                      School Code
+                    </label>
+                    <input
+                      type="text"
+                      value={editSchoolForm.schoolCode}
+                      onChange={(e) => setEditSchoolForm({ ...editSchoolForm, schoolCode: e.target.value.toUpperCase() })}
+                      className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Classes
+                </label>
+                <input
+                  type="text"
+                  value={editSchoolForm.listOfClasses}
+                  onChange={(e) => setEditSchoolForm({ ...editSchoolForm, listOfClasses: e.target.value })}
+                  placeholder="e.g., 3A, 3B, 3C, 4A, 4B"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <p className="text-slate-500 text-xs mt-1">Comma-separated list of classes</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Levels
+                </label>
+                <input
+                  type="text"
+                  value={editSchoolForm.listOfLevels}
+                  onChange={(e) => setEditSchoolForm({ ...editSchoolForm, listOfLevels: e.target.value })}
+                  placeholder="e.g., Sec 3, Sec 4, Sec 5"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <p className="text-slate-500 text-xs mt-1">Comma-separated list of levels</p>
+              </div>
+
+              {isSuperAdmin && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                      Contact Email
+                    </label>
+                    <input
+                      type="email"
+                      value={editSchoolForm.contactEmail}
+                      onChange={(e) => setEditSchoolForm({ ...editSchoolForm, contactEmail: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                      Address
+                    </label>
+                    <textarea
+                      value={editSchoolForm.address}
+                      onChange={(e) => setEditSchoolForm({ ...editSchoolForm, address: e.target.value })}
+                      rows={2}
+                      className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="isActive"
+                      checked={editSchoolForm.isActive}
+                      onChange={(e) => setEditSchoolForm({ ...editSchoolForm, isActive: e.target.checked })}
+                      className="w-5 h-5 rounded bg-slate-900/50 border-slate-600 text-indigo-500 focus:ring-indigo-500"
+                    />
+                    <label htmlFor="isActive" className="text-sm text-slate-300">
+                      School is active
+                    </label>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditSchoolModal(false);
+                  setEditingSchool(null);
+                }}
+                className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateSchool}
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
+              >
+                Save Changes
               </button>
             </div>
           </div>

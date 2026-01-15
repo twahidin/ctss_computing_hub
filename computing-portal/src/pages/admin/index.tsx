@@ -28,6 +28,16 @@ export default function AdminDashboard() {
   const [selectedUser, setSelectedUser] = useState<UserListItem | null>(null);
   const [newPassword, setNewPassword] = useState('');
   
+  // New school form state
+  const [newSchool, setNewSchool] = useState({
+    schoolName: '',
+    schoolCode: '',
+    listOfClasses: '',
+    listOfLevels: '',
+    contactEmail: '',
+    address: '',
+  });
+  
   const userProfile = session?.user?.profile as UserProfile;
   const isSuperAdmin = userProfile === 'super_admin';
   const isAdmin = userProfile === 'admin';
@@ -121,6 +131,38 @@ export default function AdminDashboard() {
       setNewPassword('');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to reset password');
+    }
+  };
+
+  // Handle create school
+  const handleCreateSchool = async () => {
+    if (!newSchool.schoolName || !newSchool.schoolCode) {
+      toast.error('School name and code are required');
+      return;
+    }
+
+    try {
+      await axios.post('/api/admin/schools', {
+        schoolName: newSchool.schoolName,
+        schoolCode: newSchool.schoolCode,
+        listOfClasses: newSchool.listOfClasses.split(',').map(c => c.trim()).filter(c => c),
+        listOfLevels: newSchool.listOfLevels.split(',').map(l => l.trim()).filter(l => l),
+        contactEmail: newSchool.contactEmail,
+        address: newSchool.address,
+      });
+      toast.success('School created successfully');
+      setShowSchoolModal(false);
+      setNewSchool({
+        schoolName: '',
+        schoolCode: '',
+        listOfClasses: '',
+        listOfLevels: '',
+        contactEmail: '',
+        address: '',
+      });
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to create school');
     }
   };
 
@@ -450,6 +492,123 @@ export default function AdminDashboard() {
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
               >
                 Reset Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add School Modal */}
+      {showSchoolModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-lg border border-slate-700 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-semibold text-white mb-4">Add New School</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  School Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newSchool.schoolName}
+                  onChange={(e) => setNewSchool({ ...newSchool, schoolName: e.target.value })}
+                  placeholder="e.g., Springfield Secondary School"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  School Code <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newSchool.schoolCode}
+                  onChange={(e) => setNewSchool({ ...newSchool, schoolCode: e.target.value.toUpperCase() })}
+                  placeholder="e.g., SSS"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <p className="text-slate-500 text-xs mt-1">Unique code for the school (will be uppercased)</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Classes
+                </label>
+                <input
+                  type="text"
+                  value={newSchool.listOfClasses}
+                  onChange={(e) => setNewSchool({ ...newSchool, listOfClasses: e.target.value })}
+                  placeholder="e.g., 3A, 3B, 3C, 4A, 4B"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <p className="text-slate-500 text-xs mt-1">Comma-separated list of classes</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Levels
+                </label>
+                <input
+                  type="text"
+                  value={newSchool.listOfLevels}
+                  onChange={(e) => setNewSchool({ ...newSchool, listOfLevels: e.target.value })}
+                  placeholder="e.g., Sec 3, Sec 4, Sec 5"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <p className="text-slate-500 text-xs mt-1">Comma-separated list of levels</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Contact Email
+                </label>
+                <input
+                  type="email"
+                  value={newSchool.contactEmail}
+                  onChange={(e) => setNewSchool({ ...newSchool, contactEmail: e.target.value })}
+                  placeholder="e.g., admin@school.edu.sg"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Address
+                </label>
+                <textarea
+                  value={newSchool.address}
+                  onChange={(e) => setNewSchool({ ...newSchool, address: e.target.value })}
+                  placeholder="School address"
+                  rows={2}
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowSchoolModal(false);
+                  setNewSchool({
+                    schoolName: '',
+                    schoolCode: '',
+                    listOfClasses: '',
+                    listOfLevels: '',
+                    contactEmail: '',
+                    address: '',
+                  });
+                }}
+                className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateSchool}
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
+              >
+                Create School
               </button>
             </div>
           </div>

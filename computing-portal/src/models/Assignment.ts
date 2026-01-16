@@ -31,12 +31,17 @@ export interface IAssignment extends Document {
   teacher: mongoose.Types.ObjectId;
   school: mongoose.Types.ObjectId;
   class: string;
-  questions: IQuestion[];
+  // Question PDF (distributed to students)
+  questionPdf?: IPdfDocument;
+  // Answer PDF (for teacher marking reference)
+  answerPdf?: IPdfDocument;
+  // Legacy: AI-generated questions (optional)
+  questions?: IQuestion[];
   totalMarks: number;
   dueDate?: Date;
   status: AssignmentStatus;
   difficulty: DifficultyLevel;
-  // PDF uploads with extracted text (stored in MongoDB)
+  // Legacy: PDF uploads with extracted text (stored in MongoDB)
   learningOutcomesPdf?: IPdfDocument;
   resourcePdfs?: IPdfDocument[];
   allowDraftSubmissions: boolean;
@@ -104,6 +109,21 @@ const AssignmentSchema = new Schema<IAssignment>(
       required: [true, 'Class is required'],
       trim: true,
     },
+    // Question PDF for students
+    questionPdf: {
+      filename: { type: String },
+      extractedText: { type: String },
+      numPages: { type: Number },
+      uploadedAt: { type: Date },
+    },
+    // Answer PDF for teacher marking reference
+    answerPdf: {
+      filename: { type: String },
+      extractedText: { type: String },
+      numPages: { type: Number },
+      uploadedAt: { type: Date },
+    },
+    // Legacy: AI-generated questions (optional)
     questions: [QuestionSchema],
     totalMarks: {
       type: Number,

@@ -31,3 +31,6 @@ export type { IFeedback, IQuestionFeedback, FeedbackType } from './Feedback';
 
 export { default as LearningProfile } from './LearningProfile';
 export type { ILearningProfile, ITopicPerformance, ISubjectPerformance, AbilityLevel } from './LearningProfile';
+
+export { default as Notification } from './Notification';
+export type { INotification, NotificationType } from './Notification';

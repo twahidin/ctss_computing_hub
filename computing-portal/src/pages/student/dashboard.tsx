@@ -18,8 +18,25 @@ import {
   FiInfo,
   FiBarChart2,
   FiPieChart,
+  FiBell,
+  FiX,
+  FiClock,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+
+interface Notification {
+  _id: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  assignment?: {
+    title: string;
+    subject: string;
+    topic: string;
+  };
+}
 
 interface TopicPerformance {
   topic: string;
@@ -98,6 +115,11 @@ export default function StudentDashboard() {
   const [insights, setInsights] = useState<Insight[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'submissions' | 'insights'>('overview');
   const [expandedSubmission, setExpandedSubmission] = useState<string | null>(null);
+  
+  // Notification states
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // Redirect non-students
   useEffect(() => {
@@ -110,8 +132,74 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (session) {
       fetchLearningProfile();
+      fetchNotifications();
     }
   }, [session]);
+
+  // Poll for new notifications every 30 seconds
+  useEffect(() => {
+    if (session) {
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [session]);
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications?limit=10');
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    }
+  };
+
+  const markNotificationRead = async (id: string) => {
+    try {
+      await fetch(`/api/notifications/${id}`, {
+        method: 'PUT',
+      });
+      setNotifications(prev => 
+        prev.map(n => n._id === id ? { ...n, read: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    try {
+      await fetch('/api/notifications/mark-all-read', {
+        method: 'POST',
+      });
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+      toast.success('All notifications marked as read');
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+    }
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'assignment_new':
+        return <FiFileText className="text-indigo-400" />;
+      case 'submission_received':
+        return <FiCheckCircle className="text-green-400" />;
+      case 'marking_complete':
+        return <FiAward className="text-purple-400" />;
+      case 'submission_returned':
+        return <FiAlertCircle className="text-amber-400" />;
+      case 'assignment_due_soon':
+        return <FiClock className="text-red-400" />;
+      default:
+        return <FiBell className="text-slate-400" />;
+    }
+  };
 
   const fetchLearningProfile = async () => {
     try {
@@ -201,15 +289,118 @@ export default function StudentDashboard() {
       </Head>
 
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">
-            📊 My Learning Progress
-          </h1>
-          <p className="text-slate-400">
-            Track your performance, view feedback, and understand your learning journey
-          </p>
+        {/* Header with Notification Bell */}
+        <div className="flex items-start justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              📊 My Learning Progress
+            </h1>
+            <p className="text-slate-400">
+              Track your performance, view feedback, and understand your learning journey
+            </p>
+          </div>
+          
+          {/* Notification Bell */}
+          <div className="relative">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-3 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 hover:bg-slate-700/50 transition-colors"
+            >
+              <FiBell className="text-xl text-slate-300" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notification Dropdown */}
+            {showNotifications && (
+              <div className="absolute right-0 mt-2 w-80 bg-slate-800 rounded-xl border border-slate-700 shadow-xl z-50 overflow-hidden">
+                <div className="p-3 border-b border-slate-700 flex items-center justify-between">
+                  <h3 className="font-medium text-white">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllNotificationsRead}
+                      className="text-xs text-indigo-400 hover:text-indigo-300"
+                    >
+                      Mark all as read
+                    </button>
+                  )}
+                </div>
+                
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="p-6 text-center">
+                      <FiBell className="text-3xl text-slate-600 mx-auto mb-2" />
+                      <p className="text-slate-400 text-sm">No notifications yet</p>
+                    </div>
+                  ) : (
+                    notifications.map((notification) => (
+                      <div
+                        key={notification._id}
+                        onClick={() => {
+                          if (!notification.read) {
+                            markNotificationRead(notification._id);
+                          }
+                        }}
+                        className={`p-3 border-b border-slate-700/50 hover:bg-slate-700/30 cursor-pointer transition-colors ${
+                          !notification.read ? 'bg-indigo-500/5' : ''
+                        }`}
+                      >
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 mt-1">
+                            {getNotificationIcon(notification.type)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className={`text-sm font-medium ${!notification.read ? 'text-white' : 'text-slate-300'}`}>
+                                {notification.title}
+                              </p>
+                              {!notification.read && (
+                                <span className="flex-shrink-0 w-2 h-2 bg-indigo-500 rounded-full mt-1.5" />
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">
+                              {notification.message}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {new Date(notification.createdAt).toLocaleDateString()} at{' '}
+                              {new Date(notification.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Notification Banner for New Items */}
+        {unreadCount > 0 && !showNotifications && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-xl border border-indigo-500/30 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <FiBell className="text-indigo-400 text-xl" />
+              <div>
+                <p className="text-white font-medium">
+                  You have {unreadCount} new notification{unreadCount !== 1 ? 's' : ''}
+                </p>
+                <p className="text-sm text-slate-400">
+                  Click the bell icon to view your notifications
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowNotifications(true)}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 text-sm font-medium"
+            >
+              View
+            </button>
+          </div>
+        )}
 
         {/* Quick Stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">

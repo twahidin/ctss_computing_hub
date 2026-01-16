@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
@@ -22,21 +22,16 @@ import {
   FiAlertCircle,
   FiAward,
   FiTarget,
-  FiZap,
-  FiSettings,
+  FiBell,
   FiX,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
-interface Question {
-  id: string;
-  question: string;
-  type: string;
-  marks: number;
-  markingScheme?: string;
-  modelAnswer?: string;
-  topic?: string;
-  difficulty?: string;
+interface ParsedPdf {
+  filename: string;
+  extractedText: string;
+  numPages?: number;
+  uploadedAt: Date;
 }
 
 interface Assignment {
@@ -47,12 +42,10 @@ interface Assignment {
   grade: string;
   class: string;
   totalMarks: number;
-  questions: Question[];
-  learningOutcomesPdf?: string;
-  resourcePdfs?: string[];
+  questionPdf?: ParsedPdf;
+  answerPdf?: ParsedPdf;
   dueDate?: string;
   status: 'draft' | 'published' | 'archived';
-  difficulty: string;
   allowDraftSubmissions: boolean;
   requiresApproval: boolean;
   stats?: {
@@ -81,7 +74,7 @@ interface SubmissionForReview {
   grade?: string;
 }
 
-type ModalType = 'create' | 'generate' | 'review' | 'bulk' | null;
+type ModalType = 'create' | 'review' | 'bulk' | null;
 
 export default function TeacherAssignmentDashboard() {
   const { data: session, status } = useSession();
@@ -101,35 +94,33 @@ export default function TeacherAssignmentDashboard() {
     grade: 'Secondary 3',
     class: '',
     dueDate: '',
-    difficulty: 'medium',
+    totalMarks: 100,
     allowDraftSubmissions: true,
     requiresApproval: true,
-    numQuestions: 10,
   });
-  const [generatingQuestions, setGeneratingQuestions] = useState(false);
-  const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([]);
   
   // School classes for dropdown
   const [schoolClasses, setSchoolClasses] = useState<string[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(false);
   
-  // PDF file uploads with extracted text
-  interface ParsedPdf {
-    filename: string;
-    extractedText: string;
-    numPages?: number;
-    uploadedAt: Date;
-  }
-  const [learningOutcomesPdf, setLearningOutcomesPdf] = useState<ParsedPdf | null>(null);
-  const [resourcePdfs, setResourcePdfs] = useState<ParsedPdf[]>([]);
-  const [uploadingLearningOutcomes, setUploadingLearningOutcomes] = useState(false);
-  const [uploadingResources, setUploadingResources] = useState(false);
+  // PDF file uploads
+  const [questionPdf, setQuestionPdf] = useState<ParsedPdf | null>(null);
+  const [answerPdf, setAnswerPdf] = useState<ParsedPdf | null>(null);
+  const [uploadingQuestionPdf, setUploadingQuestionPdf] = useState(false);
+  const [uploadingAnswerPdf, setUploadingAnswerPdf] = useState(false);
   
-  // Manual text input options
-  const [showLearningOutcomesTextInput, setShowLearningOutcomesTextInput] = useState(false);
-  const [learningOutcomesText, setLearningOutcomesText] = useState('');
-  const [showResourceTextInput, setShowResourceTextInput] = useState(false);
-  const [resourceText, setResourceText] = useState('');
+  // File input refs
+  const questionPdfInputRef = useRef<HTMLInputElement>(null);
+  const answerPdfInputRef = useRef<HTMLInputElement>(null);
+  
+  // Bulk upload states
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkUploadFiles, setBulkUploadFiles] = useState<File[]>([]);
+  const [bulkUploadProgress, setBulkUploadProgress] = useState<{
+    total: number;
+    processed: number;
+    results: { filename: string; student?: string; success: boolean; error?: string }[];
+  } | null>(null);
 
   // Redirect non-teachers
   useEffect(() => {
@@ -183,8 +174,8 @@ export default function TeacherAssignmentDashboard() {
       return;
     }
 
-    if (!learningOutcomesPdf) {
-      toast.error('Please upload a learning outcomes PDF');
+    if (!questionPdf) {
+      toast.error('Please upload the question PDF');
       return;
     }
 
@@ -194,10 +185,8 @@ export default function TeacherAssignmentDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          questions: generatedQuestions,
-          totalMarks: generatedQuestions.reduce((sum, q) => sum + q.marks, 0) || 100,
-          learningOutcomesPdf: learningOutcomesPdf, // Full parsed PDF object with extracted text
-          resourcePdfs: resourcePdfs, // Array of parsed PDF objects with extracted text
+          questionPdf: questionPdf,
+          answerPdf: answerPdf,
         }),
       });
 
@@ -206,58 +195,12 @@ export default function TeacherAssignmentDashboard() {
         throw new Error(error.message);
       }
 
-      toast.success('Assignment created! PDF content stored in database.');
+      toast.success('Assignment created successfully!');
       setModalOpen(null);
       resetForm();
       fetchAssignments();
     } catch (error: any) {
       toast.error(error.message || 'Failed to create assignment');
-    }
-  };
-
-  const handleGenerateQuestions = async () => {
-    if (!formData.topic) {
-      toast.error('Please enter a topic');
-      return;
-    }
-
-    if (!learningOutcomesPdf) {
-      toast.error('Please upload a learning outcomes PDF');
-      return;
-    }
-
-    setGeneratingQuestions(true);
-    try {
-      // Use extracted text from PDF for question generation
-      const learningOutcomesText = learningOutcomesPdf.extractedText;
-      
-      // Combine with resource PDFs text if available
-      const resourceTexts = resourcePdfs.map(pdf => pdf.extractedText).join('\n\n');
-      
-      const res = await fetch('/api/teacher/generate-questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject: formData.subject,
-          topic: formData.topic,
-          learningOutcomes: [learningOutcomesText], // Send full extracted text
-          additionalContext: resourceTexts || undefined, // Additional context from resources
-          numQuestions: formData.numQuestions,
-        }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message);
-      }
-
-      const data = await res.json();
-      setGeneratedQuestions(data.questions);
-      toast.success(`Generated ${data.questions.length} questions from PDF content!`);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to generate questions');
-    } finally {
-      setGeneratingQuestions(false);
     }
   };
 
@@ -307,64 +250,26 @@ export default function TeacherAssignmentDashboard() {
       grade: 'Secondary 3',
       class: '',
       dueDate: '',
-      difficulty: 'medium',
+      totalMarks: 100,
       allowDraftSubmissions: true,
       requiresApproval: true,
-      numQuestions: 10,
     });
-    setGeneratedQuestions([]);
-    setLearningOutcomesPdf(null);
-    setResourcePdfs([]);
-    // Reset text inputs
-    setShowLearningOutcomesTextInput(false);
-    setLearningOutcomesText('');
-    setShowResourceTextInput(false);
-    setResourceText('');
-  };
-
-  // Handle saving manual text input
-  const handleSaveLearningOutcomesText = () => {
-    if (!learningOutcomesText.trim()) {
-      toast.error('Please enter some text');
-      return;
-    }
-    setLearningOutcomesPdf({
-      filename: 'Manual Text Input',
-      extractedText: learningOutcomesText.trim(),
-      numPages: 1,
-      uploadedAt: new Date(),
-    });
-    setShowLearningOutcomesTextInput(false);
-    toast.success('Learning outcomes text saved!');
-  };
-
-  const handleSaveResourceText = () => {
-    if (!resourceText.trim()) {
-      toast.error('Please enter some text');
-      return;
-    }
-    const newResource: ParsedPdf = {
-      filename: `Manual Text Input ${resourcePdfs.length + 1}`,
-      extractedText: resourceText.trim(),
-      numPages: 1,
-      uploadedAt: new Date(),
-    };
-    setResourcePdfs(prev => [...prev, newResource].slice(0, 3));
-    setResourceText('');
-    setShowResourceTextInput(false);
-    toast.success('Resource text saved!');
+    setQuestionPdf(null);
+    setAnswerPdf(null);
+    setBulkUploadFiles([]);
+    setBulkUploadProgress(null);
   };
 
   // Upload and parse PDF files
-  const uploadAndParsePdf = async (file: File, type: 'learningOutcomes' | 'resource'): Promise<ParsedPdf | null> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', type);
+  const uploadAndParsePdf = async (file: File, type: 'question' | 'answer'): Promise<ParsedPdf | null> => {
+    const formDataObj = new FormData();
+    formDataObj.append('file', file);
+    formDataObj.append('type', type);
 
     try {
       const res = await fetch('/api/teacher/upload-pdf', {
         method: 'POST',
-        body: formData,
+        body: formDataObj,
       });
 
       if (!res.ok) {
@@ -373,14 +278,14 @@ export default function TeacherAssignmentDashboard() {
       }
 
       const data = await res.json();
-      return type === 'learningOutcomes' ? data.pdf : data.pdfs?.[0];
+      return data.pdf;
     } catch (error: any) {
       toast.error(error.message || 'Failed to process PDF');
       return null;
     }
   };
 
-  const handleLearningOutcomesPdfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleQuestionPdfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -389,242 +294,110 @@ export default function TeacherAssignmentDashboard() {
       e.target.value = '';
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Learning outcomes PDF must be under 2MB');
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Question PDF must be under 10MB');
       e.target.value = '';
       return;
     }
 
-    setUploadingLearningOutcomes(true);
-    const parsed = await uploadAndParsePdf(file, 'learningOutcomes');
+    setUploadingQuestionPdf(true);
+    const parsed = await uploadAndParsePdf(file, 'question');
     if (parsed) {
-      setLearningOutcomesPdf(parsed);
-      toast.success(`Extracted ${parsed.numPages} page(s) from PDF`);
+      setQuestionPdf(parsed);
+      toast.success(`Question PDF uploaded (${parsed.numPages} page(s))`);
     }
-    setUploadingLearningOutcomes(false);
+    setUploadingQuestionPdf(false);
     e.target.value = '';
   };
 
-  const handleResourcePdfsChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+  const handleAnswerPdfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    const validFiles: File[] = [];
-    for (const file of files) {
-      if (resourcePdfs.length + validFiles.length >= 3) {
-        toast.error('Maximum 3 resource files allowed');
-        break;
-      }
-      if (file.type !== 'application/pdf') {
-        toast.error(`${file.name} is not a PDF file`);
-        continue;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`${file.name} exceeds 5MB limit`);
-        continue;
-      }
-      validFiles.push(file);
+    if (file.type !== 'application/pdf') {
+      toast.error('Please upload a PDF file');
+      e.target.value = '';
+      return;
     }
-
-    if (validFiles.length > 0) {
-      setUploadingResources(true);
-      const newPdfs: ParsedPdf[] = [];
-      
-      for (const file of validFiles) {
-        const parsed = await uploadAndParsePdf(file, 'resource');
-        if (parsed) {
-          newPdfs.push(parsed);
-        }
-      }
-      
-      if (newPdfs.length > 0) {
-        setResourcePdfs(prev => [...prev, ...newPdfs].slice(0, 3));
-        toast.success(`Processed ${newPdfs.length} resource PDF(s)`);
-      }
-      setUploadingResources(false);
-    }
-    e.target.value = '';
-  };
-
-  const removeResourcePdf = (index: number) => {
-    setResourcePdfs(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // Generate and download PDF (questions only or with answers)
-  const downloadQuestionsPdf = (includeAnswers: boolean) => {
-    if (generatedQuestions.length === 0) {
-      toast.error('No questions to download');
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Answer PDF must be under 10MB');
+      e.target.value = '';
       return;
     }
 
-    const title = formData.title || 'Assignment';
-    const subject = formData.subject || 'Subject';
-    const topic = formData.topic || 'Topic';
-    const totalMarks = generatedQuestions.reduce((sum, q) => sum + q.marks, 0);
+    setUploadingAnswerPdf(true);
+    const parsed = await uploadAndParsePdf(file, 'answer');
+    if (parsed) {
+      setAnswerPdf(parsed);
+      toast.success(`Answer PDF uploaded (${parsed.numPages} page(s))`);
+    }
+    setUploadingAnswerPdf(false);
+    e.target.value = '';
+  };
 
-    // Create HTML content for the PDF
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${title}</title>
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 40px;
-            line-height: 1.6;
-          }
-          .header {
-            text-align: center;
-            border-bottom: 2px solid #333;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-          }
-          .header h1 {
-            margin: 0 0 10px 0;
-            font-size: 24px;
-          }
-          .header p {
-            margin: 5px 0;
-            color: #666;
-          }
-          .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            padding: 10px;
-            background: #f5f5f5;
-            border-radius: 5px;
-          }
-          .question {
-            margin-bottom: 25px;
-            page-break-inside: avoid;
-          }
-          .question-header {
-            font-weight: bold;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-          }
-          .question-text {
-            margin-bottom: 10px;
-          }
-          .answer-space {
-            border: 1px dashed #ccc;
-            min-height: 80px;
-            margin-top: 10px;
-            padding: 10px;
-            background: #fafafa;
-          }
-          .model-answer {
-            margin-top: 15px;
-            padding: 15px;
-            background: #e8f5e9;
-            border-left: 4px solid #4caf50;
-            border-radius: 4px;
-          }
-          .model-answer-label {
-            font-weight: bold;
-            color: #2e7d32;
-            margin-bottom: 5px;
-          }
-          .marking-scheme {
-            margin-top: 10px;
-            padding: 10px;
-            background: #fff3e0;
-            border-left: 4px solid #ff9800;
-            border-radius: 4px;
-            font-size: 14px;
-          }
-          .marking-scheme-label {
-            font-weight: bold;
-            color: #e65100;
-            margin-bottom: 5px;
-          }
-          .footer {
-            margin-top: 40px;
-            text-align: center;
-            font-size: 12px;
-            color: #999;
-          }
-          @media print {
-            body { padding: 20px; }
-            .no-print { display: none; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>${title}</h1>
-          <p><strong>Subject:</strong> ${subject} | <strong>Topic:</strong> ${topic}</p>
-          <p><strong>Total Marks:</strong> ${totalMarks}</p>
-        </div>
+  // Handle bulk upload of student submissions
+  const handleBulkUploadFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles = files.filter(f => f.type === 'application/pdf');
+    if (validFiles.length !== files.length) {
+      toast.error('Only PDF files are allowed');
+    }
+    setBulkUploadFiles(validFiles);
+    e.target.value = '';
+  };
+
+  const processBulkUpload = async () => {
+    if (!selectedAssignment || bulkUploadFiles.length === 0) return;
+
+    setBulkUploading(true);
+    setBulkUploadProgress({
+      total: bulkUploadFiles.length,
+      processed: 0,
+      results: [],
+    });
+
+    const results: { filename: string; student?: string; success: boolean; error?: string }[] = [];
+
+    for (const file of bulkUploadFiles) {
+      try {
+        // Extract student username from filename (expected format: username_submission.pdf)
+        const filenameWithoutExt = file.name.replace('.pdf', '');
+        const username = filenameWithoutExt.split('_')[0];
+
+        const formDataObj = new FormData();
+        formDataObj.append('pdf', file);
+        formDataObj.append('assignmentId', selectedAssignment._id);
+        formDataObj.append('studentUsername', username);
+
+        const res = await fetch('/api/teacher/bulk-upload-submission', {
+          method: 'POST',
+          body: formDataObj,
+        });
+
+        const data = await res.json();
         
-        <div class="info-row">
-          <div><strong>Name:</strong> _______________________</div>
-          <div><strong>Class:</strong> ${formData.class || '________'}</div>
-          <div><strong>Date:</strong> _____________</div>
-        </div>
+        if (res.ok) {
+          results.push({ filename: file.name, student: data.studentName, success: true });
+        } else {
+          results.push({ filename: file.name, success: false, error: data.message });
+        }
+      } catch (error: any) {
+        results.push({ filename: file.name, success: false, error: error.message });
+      }
 
-        <div class="instructions" style="margin-bottom: 30px; padding: 15px; background: #e3f2fd; border-radius: 5px;">
-          <strong>Instructions:</strong>
-          <ul style="margin: 10px 0 0 0; padding-left: 20px;">
-            <li>Answer all questions in the spaces provided.</li>
-            <li>Show all working where applicable.</li>
-            <li>Total marks: ${totalMarks}</li>
-          </ul>
-        </div>
+      setBulkUploadProgress(prev => prev ? {
+        ...prev,
+        processed: prev.processed + 1,
+        results: [...prev.results, results[results.length - 1]],
+      } : null);
+    }
 
-        ${generatedQuestions.map((q, idx) => `
-          <div class="question">
-            <div class="question-header">
-              <span>Question ${idx + 1}</span>
-              <span>[${q.marks} marks]</span>
-            </div>
-            <div class="question-text">${q.question}</div>
-            ${!includeAnswers ? `
-              <div class="answer-space">
-                <em style="color: #999;">Write your answer here...</em>
-              </div>
-            ` : ''}
-            ${includeAnswers && q.modelAnswer ? `
-              <div class="model-answer">
-                <div class="model-answer-label">Model Answer:</div>
-                <div>${q.modelAnswer}</div>
-              </div>
-            ` : ''}
-            ${includeAnswers && q.markingScheme ? `
-              <div class="marking-scheme">
-                <div class="marking-scheme-label">Marking Scheme:</div>
-                <div>${q.markingScheme}</div>
-              </div>
-            ` : ''}
-          </div>
-        `).join('')}
-
-        <div class="footer">
-          <p>Generated by CTSS Computing Hub</p>
-        </div>
-
-        <script>
-          // Auto-print when opened
-          window.onload = function() {
-            window.print();
-          }
-        </script>
-      </body>
-      </html>
-    `;
-
-    // Open in new window for printing/saving as PDF
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(htmlContent);
-      printWindow.document.close();
-    } else {
-      toast.error('Please allow popups to download PDF');
+    setBulkUploading(false);
+    
+    const successCount = results.filter(r => r.success).length;
+    if (successCount > 0) {
+      toast.success(`Uploaded ${successCount} submission(s). Students will be notified.`);
+      fetchAssignments();
     }
   };
 
@@ -660,10 +433,10 @@ export default function TeacherAssignmentDashboard() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">
-              📋 AI Assignment Dashboard
+              📋 Assignment Dashboard
             </h1>
             <p className="text-slate-400">
-              Create, manage, and track assignments with AI-powered features
+              Create, manage, and track class assignments
             </p>
           </div>
           <div className="flex gap-3 mt-4 sm:mt-0">
@@ -739,7 +512,7 @@ export default function TeacherAssignmentDashboard() {
               <FiFileText className="text-5xl text-slate-600 mx-auto mb-4" />
               <h3 className="text-xl font-medium text-white mb-2">No Assignments Yet</h3>
               <p className="text-slate-400 mb-4">
-                Create your first assignment with AI-generated questions
+                Create your first assignment by uploading question and answer PDFs
               </p>
               <button
                 onClick={() => setModalOpen('create')}
@@ -822,31 +595,55 @@ export default function TeacherAssignmentDashboard() {
                           Publish
                         </button>
                       )}
+                      {assignment.questionPdf && (
+                        <button
+                          onClick={() => window.open(`/api/assignments/${assignment._id}/question-pdf`, '_blank')}
+                          className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-500 flex items-center"
+                        >
+                          <FiDownload className="mr-1" />
+                          Download Questions
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setSelectedAssignment(assignment);
-                          setFormData({
-                            ...formData,
-                            subject: assignment.subject,
-                            topic: assignment.topic,
-                            class: assignment.class,
-                          });
-                          setModalOpen('generate');
+                          setBulkUploadFiles([]);
+                          setBulkUploadProgress(null);
+                          setModalOpen('bulk');
                         }}
                         className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-500 flex items-center"
                       >
-                        <FiZap className="mr-1" />
-                        Generate Differentiated PDFs
+                        <FiUpload className="mr-1" />
+                        Bulk Upload Submissions
                       </button>
                       <button
-                        onClick={() => {
-                          setSelectedAssignment(assignment);
-                          setModalOpen('bulk');
+                        onClick={async () => {
+                          // Notify students about this assignment
+                          try {
+                            const res = await fetch('/api/notifications', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                classGroup: assignment.class,
+                                type: 'assignment_new',
+                                title: 'New Assignment Available',
+                                message: `A new assignment "${assignment.title}" has been posted for ${assignment.subject} - ${assignment.topic}`,
+                                assignmentId: assignment._id,
+                                actionUrl: '/student/dashboard',
+                              }),
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              toast.success(`Notified ${data.count} student(s)`);
+                            }
+                          } catch (error) {
+                            toast.error('Failed to send notifications');
+                          }
                         }}
-                        className="px-3 py-1.5 bg-slate-600 text-white text-sm rounded-lg hover:bg-slate-500 flex items-center"
+                        className="px-3 py-1.5 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-500 flex items-center"
                       >
-                        <FiUpload className="mr-1" />
-                        Bulk Upload
+                        <FiBell className="mr-1" />
+                        Notify Class
                       </button>
                     </div>
 
@@ -1002,6 +799,7 @@ export default function TeacherAssignmentDashboard() {
               </div>
               
               <div className="p-6 space-y-4">
+                {/* Title and Class */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-1">Title *</label>
@@ -1032,6 +830,7 @@ export default function TeacherAssignmentDashboard() {
                   </div>
                 </div>
 
+                {/* Subject and Topic */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-1">Subject *</label>
@@ -1055,223 +854,88 @@ export default function TeacherAssignmentDashboard() {
                   </div>
                 </div>
 
-                {/* Learning Outcomes - PDF Upload or Text Input */}
+                {/* Question PDF Upload */}
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium text-slate-300">
-                      Learning Outcomes * <span className="text-slate-500 font-normal">(PDF max 2MB)</span>
-                    </label>
-                    {!learningOutcomesPdf && !uploadingLearningOutcomes && (
-                      <button
-                        type="button"
-                        onClick={() => setShowLearningOutcomesTextInput(true)}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
-                      >
-                        <FiEdit3 size={12} />
-                        Or enter text manually
-                      </button>
-                    )}
-                  </div>
-                  {uploadingLearningOutcomes ? (
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                    Question Paper * <span className="text-slate-500 font-normal">(PDF, max 10MB)</span>
+                  </label>
+                  {uploadingQuestionPdf ? (
                     <div className="flex items-center justify-center gap-2 bg-slate-700/50 border border-indigo-500 rounded-lg px-3 py-4">
                       <FiLoader className="animate-spin text-indigo-400" />
-                      <span className="text-indigo-400 text-sm">Processing PDF & extracting text...</span>
+                      <span className="text-indigo-400 text-sm">Uploading question PDF...</span>
                     </div>
-                  ) : learningOutcomesPdf ? (
+                  ) : questionPdf ? (
                     <div className="bg-slate-700/50 border border-green-500/50 rounded-lg px-3 py-2">
                       <div className="flex items-center gap-2">
                         <FiFileText className="text-green-400" />
-                        <span className="text-white text-sm flex-1 truncate">{learningOutcomesPdf.filename}</span>
-                        <span className="text-slate-400 text-xs">
-                          {learningOutcomesPdf.numPages} page(s)
-                        </span>
+                        <span className="text-white text-sm flex-1 truncate">{questionPdf.filename}</span>
+                        <span className="text-slate-400 text-xs">{questionPdf.numPages} page(s)</span>
                         <button
-                          onClick={() => setLearningOutcomesPdf(null)}
+                          onClick={() => setQuestionPdf(null)}
                           className="p-1 text-red-400 hover:text-red-300"
                         >
                           <FiX size={16} />
                         </button>
                       </div>
-                      <div className="mt-2 text-xs text-slate-400 bg-slate-800/50 rounded p-2 max-h-20 overflow-y-auto">
-                        <span className="text-green-400">✓ Text:</span>{' '}
-                        {learningOutcomesPdf.extractedText.substring(0, 200)}
-                        {learningOutcomesPdf.extractedText.length > 200 && '...'}
-                      </div>
                     </div>
                   ) : (
                     <label className="flex items-center justify-center gap-2 border-2 border-dashed border-slate-600 rounded-lg px-3 py-4 cursor-pointer hover:border-indigo-500 transition-colors">
                       <FiUpload className="text-slate-400" />
-                      <span className="text-slate-400 text-sm">Click to upload learning outcomes PDF</span>
+                      <span className="text-slate-400 text-sm">Click to upload question paper PDF</span>
                       <input
+                        ref={questionPdfInputRef}
                         type="file"
                         accept=".pdf"
-                        onChange={handleLearningOutcomesPdfChange}
+                        onChange={handleQuestionPdfChange}
                         className="hidden"
                       />
                     </label>
                   )}
+                  <p className="text-xs text-slate-500 mt-1">This PDF will be distributed to students</p>
                 </div>
 
-                {/* Text Input Dialog for Learning Outcomes */}
-                {showLearningOutcomesTextInput && (
-                  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-                    <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-2xl w-full">
-                      <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-white">Enter Learning Outcomes</h3>
-                        <button 
-                          onClick={() => {
-                            setShowLearningOutcomesTextInput(false);
-                            setLearningOutcomesText('');
-                          }}
-                          className="text-slate-400 hover:text-white"
-                        >
-                          <FiX size={20} />
-                        </button>
-                      </div>
-                      <div className="p-4">
-                        <textarea
-                          value={learningOutcomesText}
-                          onChange={(e) => setLearningOutcomesText(e.target.value)}
-                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm min-h-[200px] focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          placeholder="Enter the learning outcomes or syllabus content here...&#10;&#10;Example:&#10;- Students should be able to understand Python lists&#10;- Students should be able to use iteration (for loops, while loops)&#10;- Students should understand list methods (append, remove, etc.)"
-                        />
-                        <p className="text-xs text-slate-500 mt-2">
-                          This text will be used to generate questions and assess student submissions.
-                        </p>
-                      </div>
-                      <div className="p-4 border-t border-slate-700 flex justify-end gap-3">
-                        <button
-                          onClick={() => {
-                            setShowLearningOutcomesTextInput(false);
-                            setLearningOutcomesText('');
-                          }}
-                          className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-500"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleSaveLearningOutcomesText}
-                          disabled={!learningOutcomesText.trim()}
-                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 disabled:opacity-50"
-                        >
-                          Save Text
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Resource PDFs Upload or Text Input */}
+                {/* Answer PDF Upload */}
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium text-slate-300">
-                      Resources <span className="text-slate-500 font-normal">(max 3 items, PDF 5MB each)</span>
-                    </label>
-                    {resourcePdfs.length < 3 && !uploadingResources && (
-                      <button
-                        type="button"
-                        onClick={() => setShowResourceTextInput(true)}
-                        className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
-                      >
-                        <FiEdit3 size={12} />
-                        Or enter text manually
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    {resourcePdfs.map((pdf, idx) => (
-                      <div key={idx} className="bg-slate-700/50 border border-purple-500/50 rounded-lg px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <FiFileText className="text-purple-400" />
-                          <span className="text-white text-sm flex-1 truncate">{pdf.filename}</span>
-                          <span className="text-slate-400 text-xs">
-                            {pdf.numPages} page(s)
-                          </span>
-                          <button
-                            onClick={() => removeResourcePdf(idx)}
-                            className="p-1 text-red-400 hover:text-red-300"
-                          >
-                            <FiX size={16} />
-                          </button>
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500 truncate">
-                          ✓ {pdf.extractedText.substring(0, 100)}...
-                        </div>
-                      </div>
-                    ))}
-                    {uploadingResources ? (
-                      <div className="flex items-center justify-center gap-2 bg-slate-700/50 border border-purple-500 rounded-lg px-3 py-3">
-                        <FiLoader className="animate-spin text-purple-400" />
-                        <span className="text-purple-400 text-sm">Processing PDF(s)...</span>
-                      </div>
-                    ) : resourcePdfs.length < 3 && (
-                      <label className="flex items-center justify-center gap-2 border-2 border-dashed border-slate-600 rounded-lg px-3 py-3 cursor-pointer hover:border-purple-500 transition-colors">
-                        <FiUpload className="text-slate-400" />
-                        <span className="text-slate-400 text-sm">
-                          Click to upload resource PDF ({resourcePdfs.length}/3)
-                        </span>
-                        <input
-                          type="file"
-                          accept=".pdf"
-                          multiple
-                          onChange={handleResourcePdfsChange}
-                          className="hidden"
-                        />
-                      </label>
-                    )}
-                  </div>
-                </div>
-
-                {/* Text Input Dialog for Resources */}
-                {showResourceTextInput && (
-                  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-                    <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-2xl w-full">
-                      <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-white">Enter Resource Content</h3>
-                        <button 
-                          onClick={() => {
-                            setShowResourceTextInput(false);
-                            setResourceText('');
-                          }}
-                          className="text-slate-400 hover:text-white"
-                        >
-                          <FiX size={20} />
-                        </button>
-                      </div>
-                      <div className="p-4">
-                        <textarea
-                          value={resourceText}
-                          onChange={(e) => setResourceText(e.target.value)}
-                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm min-h-[200px] focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          placeholder="Enter additional resource content, notes, or reference material here...&#10;&#10;This could include:&#10;- Code examples&#10;- Additional explanations&#10;- Reference notes&#10;- Model answers"
-                        />
-                        <p className="text-xs text-slate-500 mt-2">
-                          Resource {resourcePdfs.length + 1} of 3 - This text will be used as additional context for question generation.
-                        </p>
-                      </div>
-                      <div className="p-4 border-t border-slate-700 flex justify-end gap-3">
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                    Answer Key <span className="text-slate-500 font-normal">(PDF, max 10MB, optional)</span>
+                  </label>
+                  {uploadingAnswerPdf ? (
+                    <div className="flex items-center justify-center gap-2 bg-slate-700/50 border border-purple-500 rounded-lg px-3 py-4">
+                      <FiLoader className="animate-spin text-purple-400" />
+                      <span className="text-purple-400 text-sm">Uploading answer PDF...</span>
+                    </div>
+                  ) : answerPdf ? (
+                    <div className="bg-slate-700/50 border border-purple-500/50 rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <FiFileText className="text-purple-400" />
+                        <span className="text-white text-sm flex-1 truncate">{answerPdf.filename}</span>
+                        <span className="text-slate-400 text-xs">{answerPdf.numPages} page(s)</span>
                         <button
-                          onClick={() => {
-                            setShowResourceTextInput(false);
-                            setResourceText('');
-                          }}
-                          className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-500"
+                          onClick={() => setAnswerPdf(null)}
+                          className="p-1 text-red-400 hover:text-red-300"
                         >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleSaveResourceText}
-                          disabled={!resourceText.trim()}
-                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50"
-                        >
-                          Save Text
+                          <FiX size={16} />
                         </button>
                       </div>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <label className="flex items-center justify-center gap-2 border-2 border-dashed border-slate-600 rounded-lg px-3 py-4 cursor-pointer hover:border-purple-500 transition-colors">
+                      <FiUpload className="text-slate-400" />
+                      <span className="text-slate-400 text-sm">Click to upload answer key PDF</span>
+                      <input
+                        ref={answerPdfInputRef}
+                        type="file"
+                        accept=".pdf"
+                        onChange={handleAnswerPdfChange}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                  <p className="text-xs text-slate-500 mt-1">For your reference when marking (not shown to students)</p>
+                </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                {/* Due Date and Total Marks */}
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-1">Due Date</label>
                     <input
@@ -1282,31 +946,18 @@ export default function TeacherAssignmentDashboard() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1">Difficulty</label>
-                    <select
-                      value={formData.difficulty}
-                      onChange={(e) => setFormData({ ...formData, difficulty: e.target.value })}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
-                    >
-                      <option value="easy">Easy</option>
-                      <option value="medium">Medium</option>
-                      <option value="hard">Hard</option>
-                      <option value="mixed">Mixed</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1">Questions</label>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">Total Marks</label>
                     <input
                       type="number"
-                      value={formData.numQuestions}
-                      onChange={(e) => setFormData({ ...formData, numQuestions: parseInt(e.target.value) || 10 })}
+                      value={formData.totalMarks}
+                      onChange={(e) => setFormData({ ...formData, totalMarks: parseInt(e.target.value) || 100 })}
                       className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
                       min="1"
-                      max="20"
                     />
                   </div>
                 </div>
 
+                {/* Options */}
                 <div className="flex gap-4">
                   <label className="flex items-center text-sm text-slate-300">
                     <input
@@ -1327,95 +978,6 @@ export default function TeacherAssignmentDashboard() {
                     Require Teacher Approval
                   </label>
                 </div>
-
-                {/* Generate Questions Button */}
-                <div className="border-t border-slate-700 pt-4">
-                  <button
-                    onClick={handleGenerateQuestions}
-                    disabled={generatingQuestions || !formData.topic || !learningOutcomesPdf}
-                    className="w-full py-2 px-4 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 flex items-center justify-center"
-                  >
-                    {generatingQuestions ? (
-                      <>
-                        <FiLoader className="animate-spin mr-2" />
-                        Generating Questions...
-                      </>
-                    ) : (
-                      <>
-                        <FiZap className="mr-2" />
-                        Generate AI Questions
-                      </>
-                    )}
-                  </button>
-                  {!learningOutcomesPdf && (
-                    <p className="text-xs text-slate-500 mt-2 text-center">
-                      Upload learning outcomes PDF to enable AI question generation
-                    </p>
-                  )}
-                </div>
-
-                {/* Generated Questions Preview */}
-                {generatedQuestions.length > 0 && (
-                  <div className="border border-green-500/50 bg-green-500/5 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium text-white flex items-center gap-2">
-                        <FiCheckCircle className="text-green-400" />
-                        Generated Questions ({generatedQuestions.length})
-                        <span className="text-slate-400 text-sm font-normal">
-                          - Total: {generatedQuestions.reduce((sum, q) => sum + q.marks, 0)} marks
-                        </span>
-                      </h4>
-                    </div>
-                    
-                    {/* Download Buttons */}
-                    <div className="flex gap-2 mb-3">
-                      <button
-                        onClick={() => downloadQuestionsPdf(false)}
-                        className="flex-1 py-2 px-3 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-500 flex items-center justify-center gap-2"
-                      >
-                        <FiDownload size={14} />
-                        Download Questions (PDF)
-                      </button>
-                      <button
-                        onClick={() => downloadQuestionsPdf(true)}
-                        className="flex-1 py-2 px-3 bg-green-600 text-white text-sm rounded-lg hover:bg-green-500 flex items-center justify-center gap-2"
-                      >
-                        <FiDownload size={14} />
-                        Download with Answers (PDF)
-                      </button>
-                    </div>
-
-                    {/* Questions List */}
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {generatedQuestions.map((q, idx) => (
-                        <div key={q.id} className="text-sm bg-slate-700/50 p-3 rounded border border-slate-600">
-                          <div className="flex justify-between items-start mb-1">
-                            <span className="text-indigo-400 font-medium">Q{idx + 1}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs px-2 py-0.5 bg-slate-600 rounded text-slate-300">
-                                {q.type}
-                              </span>
-                              <span className="text-xs px-2 py-0.5 bg-indigo-500/20 text-indigo-400 rounded">
-                                {q.marks} marks
-                              </span>
-                            </div>
-                          </div>
-                          <p className="text-slate-300">{q.question}</p>
-                          {q.modelAnswer && (
-                            <div className="mt-2 p-2 bg-green-500/10 border-l-2 border-green-500 rounded-r text-xs">
-                              <span className="text-green-400 font-medium">Answer: </span>
-                              <span className="text-slate-400">{q.modelAnswer.substring(0, 150)}{q.modelAnswer.length > 150 ? '...' : ''}</span>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <p className="text-xs text-slate-500 mt-3">
-                      💡 Tip: Click "Create Assignment" to save these questions, or download PDFs to review first.
-                    </p>
-                  </div>
-                )}
               </div>
 
               <div className="p-6 border-t border-slate-700 flex justify-end gap-3">
@@ -1427,7 +989,7 @@ export default function TeacherAssignmentDashboard() {
                 </button>
                 <button
                   onClick={handleCreateAssignment}
-                  disabled={!formData.title || !formData.topic || !formData.class}
+                  disabled={!formData.title || !formData.topic || !formData.class || !formData.subject || !questionPdf}
                   className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50"
                 >
                   Create Assignment
@@ -1437,85 +999,10 @@ export default function TeacherAssignmentDashboard() {
           </div>
         )}
 
-        {/* Generate Differentiated PDFs Modal */}
-        {modalOpen === 'generate' && selectedAssignment && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-800 rounded-2xl border border-slate-700 max-w-lg w-full">
-              <div className="p-6 border-b border-slate-700 flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Generate Differentiated PDFs</h2>
-                <button onClick={() => setModalOpen(null)} className="text-slate-400 hover:text-white">
-                  <FiX size={24} />
-                </button>
-              </div>
-              
-              <div className="p-6">
-                <p className="text-slate-300 mb-4">
-                  Generate personalized question sets for each student based on their ability level and learning profile.
-                </p>
-                
-                <div className="bg-slate-700/30 rounded-lg p-4 mb-4">
-                  <h4 className="font-medium text-white mb-2">{selectedAssignment.title}</h4>
-                  <p className="text-sm text-slate-400">
-                    Class: {selectedAssignment.class} | 
-                    Students: {selectedAssignment.stats?.totalStudents || 0}
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center p-3 bg-green-500/10 rounded-lg border border-green-500/30">
-                    <FiTarget className="text-green-400 mr-3" />
-                    <div>
-                      <p className="text-sm font-medium text-green-400">Above Grade</p>
-                      <p className="text-xs text-slate-400">Challenging, higher-order thinking questions</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center p-3 bg-blue-500/10 rounded-lg border border-blue-500/30">
-                    <FiTarget className="text-blue-400 mr-3" />
-                    <div>
-                      <p className="text-sm font-medium text-blue-400">At Grade</p>
-                      <p className="text-xs text-slate-400">Standard complexity, grade-appropriate</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center p-3 bg-amber-500/10 rounded-lg border border-amber-500/30">
-                    <FiTarget className="text-amber-400 mr-3" />
-                    <div>
-                      <p className="text-sm font-medium text-amber-400">Below Grade</p>
-                      <p className="text-xs text-slate-400">Scaffolded, foundational questions</p>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-xs text-slate-500 mt-4">
-                  Each PDF will include the student's username at the top for easy identification.
-                </p>
-              </div>
-
-              <div className="p-6 border-t border-slate-700 flex justify-end gap-3">
-                <button
-                  onClick={() => setModalOpen(null)}
-                  className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-500"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    toast.success('PDF generation feature coming soon!');
-                    setModalOpen(null);
-                  }}
-                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-500 hover:to-pink-500"
-                >
-                  <FiDownload className="inline mr-2" />
-                  Generate PDFs
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Bulk Upload Modal */}
         {modalOpen === 'bulk' && selectedAssignment && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-800 rounded-2xl border border-slate-700 max-w-lg w-full">
+            <div className="bg-slate-800 rounded-2xl border border-slate-700 max-w-xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-slate-700 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-white">Bulk Upload Submissions</h2>
                 <button onClick={() => setModalOpen(null)} className="text-slate-400 hover:text-white">
@@ -1524,43 +1011,140 @@ export default function TeacherAssignmentDashboard() {
               </div>
               
               <div className="p-6">
-                <p className="text-slate-300 mb-4">
-                  Upload scanned PDFs of student submissions for {selectedAssignment.title}
-                </p>
-                
-                <div className="border-2 border-dashed border-slate-600 rounded-xl p-8 text-center">
-                  <FiUpload className="text-4xl text-slate-500 mx-auto mb-3" />
-                  <p className="text-slate-300">Drop PDFs here or click to browse</p>
-                  <p className="text-xs text-slate-500 mt-2">
-                    Multiple files supported
+                <div className="bg-slate-700/30 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-white mb-1">{selectedAssignment.title}</h4>
+                  <p className="text-sm text-slate-400">
+                    Class: {selectedAssignment.class} | 
+                    Students: {selectedAssignment.stats?.totalStudents || 0}
                   </p>
                 </div>
 
-                <div className="mt-4 p-3 bg-slate-700/30 rounded-lg">
-                  <h4 className="font-medium text-white text-sm mb-2">Or connect to Google Drive</h4>
-                  <button className="w-full py-2 px-4 bg-white text-gray-800 rounded-lg hover:bg-gray-100 flex items-center justify-center text-sm font-medium">
-                    <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4 mr-2" />
-                    Connect Google Drive
-                  </button>
+                <div className="mb-4 p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
+                  <p className="text-sm text-indigo-300 mb-2">
+                    <strong>File naming convention:</strong>
+                  </p>
+                  <code className="text-xs bg-slate-800 px-2 py-1 rounded text-indigo-400">
+                    username_submission.pdf
+                  </code>
+                  <p className="text-xs text-slate-400 mt-2">
+                    Example: john_doe_submission.pdf, alice123_submission.pdf
+                  </p>
                 </div>
+                
+                {!bulkUploadProgress ? (
+                  <>
+                    <label className="block border-2 border-dashed border-slate-600 rounded-xl p-8 text-center cursor-pointer hover:border-purple-500 transition-colors">
+                      <FiUpload className="text-4xl text-slate-500 mx-auto mb-3" />
+                      <p className="text-slate-300">Drop PDFs here or click to browse</p>
+                      <p className="text-xs text-slate-500 mt-2">
+                        Multiple files supported • Students will be notified
+                      </p>
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        multiple
+                        onChange={handleBulkUploadFiles}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {bulkUploadFiles.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="font-medium text-white mb-2">
+                          Selected Files ({bulkUploadFiles.length})
+                        </h4>
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {bulkUploadFiles.map((file, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-sm bg-slate-700/30 rounded p-2">
+                              <FiFileText className="text-purple-400" />
+                              <span className="text-slate-300 flex-1 truncate">{file.name}</span>
+                              <span className="text-slate-500 text-xs">
+                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Progress Bar */}
+                    <div>
+                      <div className="flex justify-between text-sm text-slate-400 mb-1">
+                        <span>Processing submissions...</span>
+                        <span>{bulkUploadProgress.processed}/{bulkUploadProgress.total}</span>
+                      </div>
+                      <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-300"
+                          style={{ width: `${(bulkUploadProgress.processed / bulkUploadProgress.total) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Results */}
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {bulkUploadProgress.results.map((result, idx) => (
+                        <div 
+                          key={idx} 
+                          className={`flex items-center gap-2 text-sm p-2 rounded ${
+                            result.success 
+                              ? 'bg-green-500/10 border border-green-500/30' 
+                              : 'bg-red-500/10 border border-red-500/30'
+                          }`}
+                        >
+                          {result.success ? (
+                            <FiCheckCircle className="text-green-400" />
+                          ) : (
+                            <FiAlertCircle className="text-red-400" />
+                          )}
+                          <span className={result.success ? 'text-green-300' : 'text-red-300'}>
+                            {result.filename}
+                          </span>
+                          {result.student && (
+                            <span className="text-slate-500 text-xs">→ {result.student}</span>
+                          )}
+                          {result.error && (
+                            <span className="text-red-400 text-xs ml-auto">{result.error}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="p-6 border-t border-slate-700 flex justify-end gap-3">
                 <button
-                  onClick={() => setModalOpen(null)}
+                  onClick={() => {
+                    setModalOpen(null);
+                    setBulkUploadFiles([]);
+                    setBulkUploadProgress(null);
+                  }}
                   className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-500"
                 >
-                  Cancel
+                  {bulkUploadProgress ? 'Close' : 'Cancel'}
                 </button>
-                <button
-                  onClick={() => {
-                    toast.success('Bulk upload feature coming soon!');
-                    setModalOpen(null);
-                  }}
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-500 hover:to-purple-500"
-                >
-                  Upload & Process
-                </button>
+                {!bulkUploadProgress && bulkUploadFiles.length > 0 && (
+                  <button
+                    onClick={processBulkUpload}
+                    disabled={bulkUploading}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 flex items-center"
+                  >
+                    {bulkUploading ? (
+                      <>
+                        <FiLoader className="animate-spin mr-2" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <FiUpload className="mr-2" />
+                        Upload & Notify Students
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>

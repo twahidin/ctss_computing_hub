@@ -99,14 +99,18 @@ async function handlePost(
       difficulty,
       allowDraftSubmissions,
       requiresApproval,
+      // New PDF fields
+      questionPdf, // { filename, extractedText, numPages, uploadedAt }
+      answerPdf,   // { filename, extractedText, numPages, uploadedAt }
+      // Legacy PDF fields
       learningOutcomesPdf, // { filename, extractedText, numPages, uploadedAt }
       resourcePdfs, // [{ filename, extractedText, numPages, uploadedAt }]
     } = req.body;
 
     // Validate required fields
-    if (!title || !subject || !topic || !grade || !classGroup) {
+    if (!title || !subject || !topic || !classGroup) {
       return res.status(400).json({ 
-        message: 'Missing required fields: title, subject, topic, grade, class' 
+        message: 'Missing required fields: title, subject, topic, class' 
       });
     }
 
@@ -120,10 +124,14 @@ async function handlePost(
       title,
       subject,
       topic,
-      grade,
+      grade: grade || 'Secondary 3',
       teacher: user.id,
       school: teacher.school,
       class: classGroup,
+      // New PDF fields
+      questionPdf: questionPdf || undefined,
+      answerPdf: answerPdf || undefined,
+      // Legacy fields
       questions: questions || [],
       totalMarks: totalMarks || questions?.reduce((sum: number, q: any) => sum + (q.marks || 0), 0) || 100,
       dueDate: dueDate ? new Date(dueDate) : undefined,

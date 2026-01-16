@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth';
+import mongoose from 'mongoose';
 import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import { Submission, Assignment, Feedback } from '@/models';
@@ -60,7 +61,7 @@ export default async function handler(
     switch (action) {
       case 'approve':
         submission.status = 'approved';
-        submission.approvedBy = user.id;
+        submission.approvedBy = new mongoose.Types.ObjectId(user.id);
         submission.approvedAt = new Date();
         if (teacherComments) submission.teacherComments = teacherComments;
         break;
@@ -68,7 +69,7 @@ export default async function handler(
       case 'return':
         submission.status = 'returned';
         submission.returnedAt = new Date();
-        submission.approvedBy = user.id;
+        submission.approvedBy = new mongoose.Types.ObjectId(user.id);
         submission.approvedAt = new Date();
         if (teacherComments) submission.teacherComments = teacherComments;
         break;
@@ -135,7 +136,7 @@ export default async function handler(
 
         feedback.teacherModified = true;
         feedback.teacherModifiedAt = new Date();
-        feedback.teacherModifiedBy = user.id;
+        feedback.teacherModifiedBy = new mongoose.Types.ObjectId(user.id);
 
         // Store original if not already stored
         if (!feedback.originalFeedback) {

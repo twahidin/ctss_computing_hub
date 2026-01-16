@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth';
+import mongoose from 'mongoose';
 import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import { Submission, Assignment, Feedback } from '@/models';
@@ -112,7 +113,7 @@ async function handlePut(
       
       if (approveSubmission) {
         submission.status = 'approved';
-        submission.approvedBy = user.id;
+        submission.approvedBy = new mongoose.Types.ObjectId(user.id);
         submission.approvedAt = new Date();
       }
 

@@ -9,7 +9,7 @@ const MODEL = 'claude-sonnet-4-20250514';
 export interface QuestionData {
   id: string;
   question: string;
-  type: string;
+  type: 'mcq' | 'short_answer' | 'long_answer' | 'calculation';
   marks: number;
   markingScheme?: string;
   modelAnswer?: string;

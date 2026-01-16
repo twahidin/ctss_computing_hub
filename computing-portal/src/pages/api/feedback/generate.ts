@@ -142,7 +142,7 @@ export default async function handler(
 
       // Update learning profile
       await updateLearningProfile(
-        submission.student._id,
+        submission.student._id.toString(),
         assignment,
         markingResult
       );

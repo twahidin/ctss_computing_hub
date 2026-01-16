@@ -12,6 +12,7 @@ import {
   FiChevronDown,
   FiChevronUp,
   FiEdit,
+  FiEdit3,
   FiTrash2,
   FiSend,
   FiEye,
@@ -123,6 +124,12 @@ export default function TeacherAssignmentDashboard() {
   const [resourcePdfs, setResourcePdfs] = useState<ParsedPdf[]>([]);
   const [uploadingLearningOutcomes, setUploadingLearningOutcomes] = useState(false);
   const [uploadingResources, setUploadingResources] = useState(false);
+  
+  // Manual text input options
+  const [showLearningOutcomesTextInput, setShowLearningOutcomesTextInput] = useState(false);
+  const [learningOutcomesText, setLearningOutcomesText] = useState('');
+  const [showResourceTextInput, setShowResourceTextInput] = useState(false);
+  const [resourceText, setResourceText] = useState('');
 
   // Redirect non-teachers
   useEffect(() => {
@@ -308,6 +315,44 @@ export default function TeacherAssignmentDashboard() {
     setGeneratedQuestions([]);
     setLearningOutcomesPdf(null);
     setResourcePdfs([]);
+    // Reset text inputs
+    setShowLearningOutcomesTextInput(false);
+    setLearningOutcomesText('');
+    setShowResourceTextInput(false);
+    setResourceText('');
+  };
+
+  // Handle saving manual text input
+  const handleSaveLearningOutcomesText = () => {
+    if (!learningOutcomesText.trim()) {
+      toast.error('Please enter some text');
+      return;
+    }
+    setLearningOutcomesPdf({
+      filename: 'Manual Text Input',
+      extractedText: learningOutcomesText.trim(),
+      numPages: 1,
+      uploadedAt: new Date(),
+    });
+    setShowLearningOutcomesTextInput(false);
+    toast.success('Learning outcomes text saved!');
+  };
+
+  const handleSaveResourceText = () => {
+    if (!resourceText.trim()) {
+      toast.error('Please enter some text');
+      return;
+    }
+    const newResource: ParsedPdf = {
+      filename: `Manual Text Input ${resourcePdfs.length + 1}`,
+      extractedText: resourceText.trim(),
+      numPages: 1,
+      uploadedAt: new Date(),
+    };
+    setResourcePdfs(prev => [...prev, newResource].slice(0, 3));
+    setResourceText('');
+    setShowResourceTextInput(false);
+    toast.success('Resource text saved!');
   };
 
   // Upload and parse PDF files
@@ -832,11 +877,23 @@ export default function TeacherAssignmentDashboard() {
                   </div>
                 </div>
 
-                {/* Learning Outcomes PDF Upload */}
+                {/* Learning Outcomes - PDF Upload or Text Input */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Learning Outcomes PDF * <span className="text-slate-500 font-normal">(max 2MB - text will be extracted)</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-slate-300">
+                      Learning Outcomes * <span className="text-slate-500 font-normal">(PDF max 2MB)</span>
+                    </label>
+                    {!learningOutcomesPdf && !uploadingLearningOutcomes && (
+                      <button
+                        type="button"
+                        onClick={() => setShowLearningOutcomesTextInput(true)}
+                        className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                      >
+                        <FiEdit3 size={12} />
+                        Or enter text manually
+                      </button>
+                    )}
+                  </div>
                   {uploadingLearningOutcomes ? (
                     <div className="flex items-center justify-center gap-2 bg-slate-700/50 border border-indigo-500 rounded-lg px-3 py-4">
                       <FiLoader className="animate-spin text-indigo-400" />
@@ -858,7 +915,7 @@ export default function TeacherAssignmentDashboard() {
                         </button>
                       </div>
                       <div className="mt-2 text-xs text-slate-400 bg-slate-800/50 rounded p-2 max-h-20 overflow-y-auto">
-                        <span className="text-green-400">✓ Text extracted:</span>{' '}
+                        <span className="text-green-400">✓ Text:</span>{' '}
                         {learningOutcomesPdf.extractedText.substring(0, 200)}
                         {learningOutcomesPdf.extractedText.length > 200 && '...'}
                       </div>
@@ -877,11 +934,72 @@ export default function TeacherAssignmentDashboard() {
                   )}
                 </div>
 
-                {/* Resource PDFs Upload */}
+                {/* Text Input Dialog for Learning Outcomes */}
+                {showLearningOutcomesTextInput && (
+                  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-2xl w-full">
+                      <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-white">Enter Learning Outcomes</h3>
+                        <button 
+                          onClick={() => {
+                            setShowLearningOutcomesTextInput(false);
+                            setLearningOutcomesText('');
+                          }}
+                          className="text-slate-400 hover:text-white"
+                        >
+                          <FiX size={20} />
+                        </button>
+                      </div>
+                      <div className="p-4">
+                        <textarea
+                          value={learningOutcomesText}
+                          onChange={(e) => setLearningOutcomesText(e.target.value)}
+                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm min-h-[200px] focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          placeholder="Enter the learning outcomes or syllabus content here...&#10;&#10;Example:&#10;- Students should be able to understand Python lists&#10;- Students should be able to use iteration (for loops, while loops)&#10;- Students should understand list methods (append, remove, etc.)"
+                        />
+                        <p className="text-xs text-slate-500 mt-2">
+                          This text will be used to generate questions and assess student submissions.
+                        </p>
+                      </div>
+                      <div className="p-4 border-t border-slate-700 flex justify-end gap-3">
+                        <button
+                          onClick={() => {
+                            setShowLearningOutcomesTextInput(false);
+                            setLearningOutcomesText('');
+                          }}
+                          className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-500"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveLearningOutcomesText}
+                          disabled={!learningOutcomesText.trim()}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 disabled:opacity-50"
+                        >
+                          Save Text
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Resource PDFs Upload or Text Input */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Resource PDFs <span className="text-slate-500 font-normal">(max 3 files, 5MB each - text will be extracted)</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-slate-300">
+                      Resources <span className="text-slate-500 font-normal">(max 3 items, PDF 5MB each)</span>
+                    </label>
+                    {resourcePdfs.length < 3 && !uploadingResources && (
+                      <button
+                        type="button"
+                        onClick={() => setShowResourceTextInput(true)}
+                        className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                      >
+                        <FiEdit3 size={12} />
+                        Or enter text manually
+                      </button>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     {resourcePdfs.map((pdf, idx) => (
                       <div key={idx} className="bg-slate-700/50 border border-purple-500/50 rounded-lg px-3 py-2">
@@ -925,6 +1043,55 @@ export default function TeacherAssignmentDashboard() {
                     )}
                   </div>
                 </div>
+
+                {/* Text Input Dialog for Resources */}
+                {showResourceTextInput && (
+                  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-2xl w-full">
+                      <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-white">Enter Resource Content</h3>
+                        <button 
+                          onClick={() => {
+                            setShowResourceTextInput(false);
+                            setResourceText('');
+                          }}
+                          className="text-slate-400 hover:text-white"
+                        >
+                          <FiX size={20} />
+                        </button>
+                      </div>
+                      <div className="p-4">
+                        <textarea
+                          value={resourceText}
+                          onChange={(e) => setResourceText(e.target.value)}
+                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm min-h-[200px] focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          placeholder="Enter additional resource content, notes, or reference material here...&#10;&#10;This could include:&#10;- Code examples&#10;- Additional explanations&#10;- Reference notes&#10;- Model answers"
+                        />
+                        <p className="text-xs text-slate-500 mt-2">
+                          Resource {resourcePdfs.length + 1} of 3 - This text will be used as additional context for question generation.
+                        </p>
+                      </div>
+                      <div className="p-4 border-t border-slate-700 flex justify-end gap-3">
+                        <button
+                          onClick={() => {
+                            setShowResourceTextInput(false);
+                            setResourceText('');
+                          }}
+                          className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-500"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveResourceText}
+                          disabled={!resourceText.trim()}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50"
+                        >
+                          Save Text
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>

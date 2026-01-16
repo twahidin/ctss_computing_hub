@@ -89,19 +89,18 @@ async function handlePost(
 
     const {
       title,
-      description,
       subject,
       topic,
       grade,
       class: classGroup,
-      learningOutcomes,
       questions,
       totalMarks,
       dueDate,
       difficulty,
       allowDraftSubmissions,
       requiresApproval,
-      knowledgeBasePdf,
+      learningOutcomesPdf,
+      resourcePdfs,
     } = req.body;
 
     // Validate required fields
@@ -119,14 +118,12 @@ async function handlePost(
 
     const assignment = new Assignment({
       title,
-      description,
       subject,
       topic,
       grade,
       teacher: user.id,
       school: teacher.school,
       class: classGroup,
-      learningOutcomes: learningOutcomes || [],
       questions: questions || [],
       totalMarks: totalMarks || questions?.reduce((sum: number, q: any) => sum + (q.marks || 0), 0) || 100,
       dueDate: dueDate ? new Date(dueDate) : undefined,
@@ -134,7 +131,8 @@ async function handlePost(
       difficulty: difficulty || 'medium',
       allowDraftSubmissions: allowDraftSubmissions ?? true,
       requiresApproval: requiresApproval ?? true,
-      knowledgeBasePdf,
+      learningOutcomesPdf,
+      resourcePdfs: resourcePdfs || [],
     });
 
     await assignment.save();

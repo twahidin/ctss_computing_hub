@@ -17,20 +17,20 @@ export interface IQuestion {
 export interface IAssignment extends Document {
   _id: mongoose.Types.ObjectId;
   title: string;
-  description?: string;
   subject: string;
   topic: string;
   grade: string;
   teacher: mongoose.Types.ObjectId;
   school: mongoose.Types.ObjectId;
   class: string;
-  learningOutcomes: string[];
   questions: IQuestion[];
   totalMarks: number;
   dueDate?: Date;
   status: AssignmentStatus;
   difficulty: DifficultyLevel;
-  knowledgeBasePdf?: string; // URL to uploaded knowledge base PDF
+  // PDF uploads
+  learningOutcomesPdf?: string; // URL to uploaded learning outcomes PDF (max 2MB)
+  resourcePdfs?: string[]; // URLs to uploaded resource PDFs (max 3 files, 5MB each)
   allowDraftSubmissions: boolean;
   requiresApproval: boolean;
   createdAt: Date;
@@ -64,11 +64,6 @@ const AssignmentSchema = new Schema<IAssignment>(
       trim: true,
       maxlength: [200, 'Title cannot exceed 200 characters'],
     },
-    description: {
-      type: String,
-      trim: true,
-      maxlength: [2000, 'Description cannot exceed 2000 characters'],
-    },
     subject: {
       type: String,
       required: [true, 'Subject is required'],
@@ -101,10 +96,6 @@ const AssignmentSchema = new Schema<IAssignment>(
       required: [true, 'Class is required'],
       trim: true,
     },
-    learningOutcomes: [{
-      type: String,
-      trim: true,
-    }],
     questions: [QuestionSchema],
     totalMarks: {
       type: Number,
@@ -125,9 +116,12 @@ const AssignmentSchema = new Schema<IAssignment>(
       enum: ['easy', 'medium', 'hard', 'mixed'],
       default: 'medium',
     },
-    knowledgeBasePdf: {
+    learningOutcomesPdf: {
       type: String,
     },
+    resourcePdfs: [{
+      type: String,
+    }],
     allowDraftSubmissions: {
       type: Boolean,
       default: true,

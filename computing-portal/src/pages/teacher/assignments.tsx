@@ -41,14 +41,14 @@ interface Question {
 interface Assignment {
   _id: string;
   title: string;
-  description?: string;
   subject: string;
   topic: string;
   grade: string;
   class: string;
   totalMarks: number;
   questions: Question[];
-  learningOutcomes: string[];
+  learningOutcomesPdf?: string;
+  resourcePdfs?: string[];
   dueDate?: string;
   status: 'draft' | 'published' | 'archived';
   difficulty: string;
@@ -95,12 +95,10 @@ export default function TeacherAssignmentDashboard() {
   // Form states
   const [formData, setFormData] = useState({
     title: '',
-    description: '',
-    subject: 'Computing',
+    subject: '',
     topic: '',
     grade: 'Secondary 3',
     class: '',
-    learningOutcomes: [''],
     dueDate: '',
     difficulty: 'medium',
     allowDraftSubmissions: true,
@@ -109,6 +107,14 @@ export default function TeacherAssignmentDashboard() {
   });
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([]);
+  
+  // School classes for dropdown
+  const [schoolClasses, setSchoolClasses] = useState<string[]>([]);
+  const [loadingClasses, setLoadingClasses] = useState(false);
+  
+  // PDF file uploads
+  const [learningOutcomesPdf, setLearningOutcomesPdf] = useState<File | null>(null);
+  const [resourcePdfs, setResourcePdfs] = useState<File[]>([]);
 
   // Redirect non-teachers
   useEffect(() => {
@@ -121,8 +127,24 @@ export default function TeacherAssignmentDashboard() {
   useEffect(() => {
     if (session && ['teacher', 'admin', 'super_admin'].includes(session.user.profile)) {
       fetchAssignments();
+      fetchSchoolClasses();
     }
   }, [session]);
+
+  const fetchSchoolClasses = async () => {
+    try {
+      setLoadingClasses(true);
+      const res = await fetch('/api/teacher/school-classes');
+      if (res.ok) {
+        const data = await res.json();
+        setSchoolClasses(data.classes || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch school classes:', error);
+    } finally {
+      setLoadingClasses(false);
+    }
+  };
 
   const fetchAssignments = async () => {
     try {
@@ -141,12 +163,19 @@ export default function TeacherAssignmentDashboard() {
   };
 
   const handleCreateAssignment = async () => {
-    if (!formData.title || !formData.topic || !formData.class) {
+    if (!formData.title || !formData.topic || !formData.class || !formData.subject) {
       toast.error('Please fill in all required fields');
       return;
     }
 
+    if (!learningOutcomesPdf) {
+      toast.error('Please upload a learning outcomes PDF');
+      return;
+    }
+
     try {
+      // TODO: In a full implementation, upload PDFs to a storage service first
+      // For now, we'll store file names and handle uploads later
       const res = await fetch('/api/assignments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -154,6 +183,8 @@ export default function TeacherAssignmentDashboard() {
           ...formData,
           questions: generatedQuestions,
           totalMarks: generatedQuestions.reduce((sum, q) => sum + q.marks, 0) || 100,
+          learningOutcomesPdf: learningOutcomesPdf.name, // Placeholder - replace with actual URL after upload
+          resourcePdfs: resourcePdfs.map(f => f.name), // Placeholder - replace with actual URLs after upload
         }),
       });
 
@@ -172,20 +203,27 @@ export default function TeacherAssignmentDashboard() {
   };
 
   const handleGenerateQuestions = async () => {
-    if (!formData.topic || formData.learningOutcomes.filter(lo => lo.trim()).length === 0) {
-      toast.error('Please enter topic and at least one learning outcome');
+    if (!formData.topic) {
+      toast.error('Please enter a topic');
+      return;
+    }
+
+    if (!learningOutcomesPdf) {
+      toast.error('Please upload a learning outcomes PDF');
       return;
     }
 
     setGeneratingQuestions(true);
     try {
+      // For now, generate questions based on topic and subject
+      // In a full implementation, you would extract text from the PDF
       const res = await fetch('/api/teacher/generate-questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subject: formData.subject,
           topic: formData.topic,
-          learningOutcomes: formData.learningOutcomes.filter(lo => lo.trim()),
+          learningOutcomes: [`Learning outcomes from ${learningOutcomesPdf.name}`],
           numQuestions: formData.numQuestions,
         }),
       });
@@ -246,12 +284,10 @@ export default function TeacherAssignmentDashboard() {
   const resetForm = () => {
     setFormData({
       title: '',
-      description: '',
-      subject: 'Computing',
+      subject: '',
       topic: '',
       grade: 'Secondary 3',
       class: '',
-      learningOutcomes: [''],
       dueDate: '',
       difficulty: 'medium',
       allowDraftSubmissions: true,
@@ -259,6 +295,63 @@ export default function TeacherAssignmentDashboard() {
       numQuestions: 10,
     });
     setGeneratedQuestions([]);
+    setLearningOutcomesPdf(null);
+    setResourcePdfs([]);
+  };
+
+  // File validation helpers
+  const validateLearningOutcomesPdf = (file: File): boolean => {
+    if (file.type !== 'application/pdf') {
+      toast.error('Please upload a PDF file');
+      return false;
+    }
+    if (file.size > 2 * 1024 * 1024) { // 2MB
+      toast.error('Learning outcomes PDF must be under 2MB');
+      return false;
+    }
+    return true;
+  };
+
+  const validateResourcePdf = (file: File): boolean => {
+    if (file.type !== 'application/pdf') {
+      toast.error('Please upload PDF files only');
+      return false;
+    }
+    if (file.size > 5 * 1024 * 1024) { // 5MB
+      toast.error('Resource PDFs must be under 5MB each');
+      return false;
+    }
+    return true;
+  };
+
+  const handleLearningOutcomesPdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && validateLearningOutcomesPdf(file)) {
+      setLearningOutcomesPdf(file);
+    }
+    e.target.value = ''; // Reset input
+  };
+
+  const handleResourcePdfsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles: File[] = [];
+    
+    for (const file of files) {
+      if (resourcePdfs.length + validFiles.length >= 3) {
+        toast.error('Maximum 3 resource files allowed');
+        break;
+      }
+      if (validateResourcePdf(file)) {
+        validFiles.push(file);
+      }
+    }
+    
+    setResourcePdfs(prev => [...prev, ...validFiles].slice(0, 3));
+    e.target.value = ''; // Reset input
+  };
+
+  const removeResourcePdf = (index: number) => {
+    setResourcePdfs(prev => prev.filter((_, i) => i !== index));
   };
 
   const getStatusBadge = (status: string) => {
@@ -462,9 +555,6 @@ export default function TeacherAssignmentDashboard() {
                             ...formData,
                             subject: assignment.subject,
                             topic: assignment.topic,
-                            learningOutcomes: assignment.learningOutcomes.length > 0 
-                              ? assignment.learningOutcomes 
-                              : [''],
                             class: assignment.class,
                           });
                           setModalOpen('generate');
@@ -651,28 +741,33 @@ export default function TeacherAssignmentDashboard() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-1">Class *</label>
-                    <input
-                      type="text"
+                    <select
                       value={formData.class}
                       onChange={(e) => setFormData({ ...formData, class: e.target.value })}
                       className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
-                      placeholder="e.g., 3A"
-                    />
+                      disabled={loadingClasses}
+                    >
+                      <option value="">Select a class</option>
+                      {schoolClasses.map((cls) => (
+                        <option key={cls} value={cls}>{cls}</option>
+                      ))}
+                    </select>
+                    {schoolClasses.length === 0 && !loadingClasses && (
+                      <p className="text-xs text-amber-400 mt-1">No classes configured for your school</p>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1">Subject</label>
-                    <select
+                    <label className="block text-sm font-medium text-slate-300 mb-1">Subject *</label>
+                    <input
+                      type="text"
                       value={formData.subject}
                       onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                       className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
-                    >
-                      <option value="Computing">Computing</option>
-                      <option value="Mathematics">Mathematics</option>
-                      <option value="Science">Science</option>
-                    </select>
+                      placeholder="e.g., Computing, Mathematics"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-1">Topic *</label>
@@ -686,54 +781,76 @@ export default function TeacherAssignmentDashboard() {
                   </div>
                 </div>
 
+                {/* Learning Outcomes PDF Upload */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Description</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
-                    rows={2}
-                    placeholder="Brief description of the assignment..."
-                  />
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                    Learning Outcomes PDF * <span className="text-slate-500 font-normal">(max 2MB)</span>
+                  </label>
+                  {learningOutcomesPdf ? (
+                    <div className="flex items-center gap-2 bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2">
+                      <FiFileText className="text-indigo-400" />
+                      <span className="text-white text-sm flex-1 truncate">{learningOutcomesPdf.name}</span>
+                      <span className="text-slate-400 text-xs">
+                        {(learningOutcomesPdf.size / 1024 / 1024).toFixed(2)}MB
+                      </span>
+                      <button
+                        onClick={() => setLearningOutcomesPdf(null)}
+                        className="p-1 text-red-400 hover:text-red-300"
+                      >
+                        <FiX size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center justify-center gap-2 border-2 border-dashed border-slate-600 rounded-lg px-3 py-4 cursor-pointer hover:border-indigo-500 transition-colors">
+                      <FiUpload className="text-slate-400" />
+                      <span className="text-slate-400 text-sm">Click to upload learning outcomes PDF</span>
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        onChange={handleLearningOutcomesPdfChange}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
                 </div>
 
+                {/* Resource PDFs Upload */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Learning Outcomes</label>
-                  {formData.learningOutcomes.map((lo, idx) => (
-                    <div key={idx} className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={lo}
-                        onChange={(e) => {
-                          const newLOs = [...formData.learningOutcomes];
-                          newLOs[idx] = e.target.value;
-                          setFormData({ ...formData, learningOutcomes: newLOs });
-                        }}
-                        className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
-                        placeholder={`Learning outcome ${idx + 1}`}
-                      />
-                      {formData.learningOutcomes.length > 1 && (
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                    Resource PDFs <span className="text-slate-500 font-normal">(max 3 files, 5MB each)</span>
+                  </label>
+                  <div className="space-y-2">
+                    {resourcePdfs.map((file, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2">
+                        <FiFileText className="text-purple-400" />
+                        <span className="text-white text-sm flex-1 truncate">{file.name}</span>
+                        <span className="text-slate-400 text-xs">
+                          {(file.size / 1024 / 1024).toFixed(2)}MB
+                        </span>
                         <button
-                          onClick={() => {
-                            const newLOs = formData.learningOutcomes.filter((_, i) => i !== idx);
-                            setFormData({ ...formData, learningOutcomes: newLOs });
-                          }}
-                          className="p-2 text-red-400 hover:text-red-300"
+                          onClick={() => removeResourcePdf(idx)}
+                          className="p-1 text-red-400 hover:text-red-300"
                         >
                           <FiX size={16} />
                         </button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => setFormData({ 
-                      ...formData, 
-                      learningOutcomes: [...formData.learningOutcomes, ''] 
-                    })}
-                    className="text-sm text-indigo-400 hover:text-indigo-300"
-                  >
-                    + Add Learning Outcome
-                  </button>
+                      </div>
+                    ))}
+                    {resourcePdfs.length < 3 && (
+                      <label className="flex items-center justify-center gap-2 border-2 border-dashed border-slate-600 rounded-lg px-3 py-3 cursor-pointer hover:border-purple-500 transition-colors">
+                        <FiUpload className="text-slate-400" />
+                        <span className="text-slate-400 text-sm">
+                          Click to upload resource PDF ({resourcePdfs.length}/3)
+                        </span>
+                        <input
+                          type="file"
+                          accept=".pdf"
+                          multiple
+                          onChange={handleResourcePdfsChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
@@ -797,7 +914,7 @@ export default function TeacherAssignmentDashboard() {
                 <div className="border-t border-slate-700 pt-4">
                   <button
                     onClick={handleGenerateQuestions}
-                    disabled={generatingQuestions || !formData.topic}
+                    disabled={generatingQuestions || !formData.topic || !learningOutcomesPdf}
                     className="w-full py-2 px-4 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 flex items-center justify-center"
                   >
                     {generatingQuestions ? (
@@ -812,6 +929,11 @@ export default function TeacherAssignmentDashboard() {
                       </>
                     )}
                   </button>
+                  {!learningOutcomesPdf && (
+                    <p className="text-xs text-slate-500 mt-2 text-center">
+                      Upload learning outcomes PDF to enable AI question generation
+                    </p>
+                  )}
                 </div>
 
                 {/* Generated Questions Preview */}

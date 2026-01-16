@@ -105,12 +105,10 @@ async function handlePut(
 
     const {
       title,
-      description,
       subject,
       topic,
       grade,
       class: classGroup,
-      learningOutcomes,
       questions,
       totalMarks,
       dueDate,
@@ -118,17 +116,16 @@ async function handlePut(
       difficulty,
       allowDraftSubmissions,
       requiresApproval,
-      knowledgeBasePdf,
+      learningOutcomesPdf,
+      resourcePdfs,
     } = req.body;
 
     // Update fields
     if (title !== undefined) assignment.title = title;
-    if (description !== undefined) assignment.description = description;
     if (subject !== undefined) assignment.subject = subject;
     if (topic !== undefined) assignment.topic = topic;
     if (grade !== undefined) assignment.grade = grade;
     if (classGroup !== undefined) assignment.class = classGroup;
-    if (learningOutcomes !== undefined) assignment.learningOutcomes = learningOutcomes;
     if (questions !== undefined) assignment.questions = questions;
     if (totalMarks !== undefined) assignment.totalMarks = totalMarks;
     if (dueDate !== undefined) assignment.dueDate = dueDate ? new Date(dueDate) : undefined;
@@ -136,7 +133,8 @@ async function handlePut(
     if (difficulty !== undefined) assignment.difficulty = difficulty;
     if (allowDraftSubmissions !== undefined) assignment.allowDraftSubmissions = allowDraftSubmissions;
     if (requiresApproval !== undefined) assignment.requiresApproval = requiresApproval;
-    if (knowledgeBasePdf !== undefined) assignment.knowledgeBasePdf = knowledgeBasePdf;
+    if (learningOutcomesPdf !== undefined) assignment.learningOutcomesPdf = learningOutcomesPdf;
+    if (resourcePdfs !== undefined) assignment.resourcePdfs = resourcePdfs;
 
     await assignment.save();
 

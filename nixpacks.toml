@@ -1,8 +1,8 @@
 [variables]
-NODE_VERSION = "18"
+NODE_VERSION = "20"
 
 [phases.setup]
-nixPkgs = ["nodejs-18_x"]
+nixPkgs = ["nodejs-20_x"]
 
 [phases.install]
 cmds = ["cd computing-portal && npm ci"]

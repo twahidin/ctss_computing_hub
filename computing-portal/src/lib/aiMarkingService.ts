@@ -14,6 +14,7 @@ export interface QuestionData {
   markingScheme?: string;
   modelAnswer?: string;
   topic?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
 }
 
 export interface DraftFeedbackResult {

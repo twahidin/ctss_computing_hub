@@ -112,9 +112,17 @@ export default function TeacherAssignmentDashboard() {
   const [schoolClasses, setSchoolClasses] = useState<string[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(false);
   
-  // PDF file uploads
-  const [learningOutcomesPdf, setLearningOutcomesPdf] = useState<File | null>(null);
-  const [resourcePdfs, setResourcePdfs] = useState<File[]>([]);
+  // PDF file uploads with extracted text
+  interface ParsedPdf {
+    filename: string;
+    extractedText: string;
+    numPages?: number;
+    uploadedAt: Date;
+  }
+  const [learningOutcomesPdf, setLearningOutcomesPdf] = useState<ParsedPdf | null>(null);
+  const [resourcePdfs, setResourcePdfs] = useState<ParsedPdf[]>([]);
+  const [uploadingLearningOutcomes, setUploadingLearningOutcomes] = useState(false);
+  const [uploadingResources, setUploadingResources] = useState(false);
 
   // Redirect non-teachers
   useEffect(() => {
@@ -174,8 +182,6 @@ export default function TeacherAssignmentDashboard() {
     }
 
     try {
-      // TODO: In a full implementation, upload PDFs to a storage service first
-      // For now, we'll store file names and handle uploads later
       const res = await fetch('/api/assignments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -183,8 +189,8 @@ export default function TeacherAssignmentDashboard() {
           ...formData,
           questions: generatedQuestions,
           totalMarks: generatedQuestions.reduce((sum, q) => sum + q.marks, 0) || 100,
-          learningOutcomesPdf: learningOutcomesPdf.name, // Placeholder - replace with actual URL after upload
-          resourcePdfs: resourcePdfs.map(f => f.name), // Placeholder - replace with actual URLs after upload
+          learningOutcomesPdf: learningOutcomesPdf, // Full parsed PDF object with extracted text
+          resourcePdfs: resourcePdfs, // Array of parsed PDF objects with extracted text
         }),
       });
 
@@ -193,7 +199,7 @@ export default function TeacherAssignmentDashboard() {
         throw new Error(error.message);
       }
 
-      toast.success('Assignment created!');
+      toast.success('Assignment created! PDF content stored in database.');
       setModalOpen(null);
       resetForm();
       fetchAssignments();
@@ -215,15 +221,20 @@ export default function TeacherAssignmentDashboard() {
 
     setGeneratingQuestions(true);
     try {
-      // For now, generate questions based on topic and subject
-      // In a full implementation, you would extract text from the PDF
+      // Use extracted text from PDF for question generation
+      const learningOutcomesText = learningOutcomesPdf.extractedText;
+      
+      // Combine with resource PDFs text if available
+      const resourceTexts = resourcePdfs.map(pdf => pdf.extractedText).join('\n\n');
+      
       const res = await fetch('/api/teacher/generate-questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subject: formData.subject,
           topic: formData.topic,
-          learningOutcomes: [`Learning outcomes from ${learningOutcomesPdf.name}`],
+          learningOutcomes: [learningOutcomesText], // Send full extracted text
+          additionalContext: resourceTexts || undefined, // Additional context from resources
           numQuestions: formData.numQuestions,
         }),
       });
@@ -235,7 +246,7 @@ export default function TeacherAssignmentDashboard() {
 
       const data = await res.json();
       setGeneratedQuestions(data.questions);
-      toast.success(`Generated ${data.questions.length} questions!`);
+      toast.success(`Generated ${data.questions.length} questions from PDF content!`);
     } catch (error: any) {
       toast.error(error.message || 'Failed to generate questions');
     } finally {
@@ -299,55 +310,95 @@ export default function TeacherAssignmentDashboard() {
     setResourcePdfs([]);
   };
 
-  // File validation helpers
-  const validateLearningOutcomesPdf = (file: File): boolean => {
+  // Upload and parse PDF files
+  const uploadAndParsePdf = async (file: File, type: 'learningOutcomes' | 'resource'): Promise<ParsedPdf | null> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', type);
+
+    try {
+      const res = await fetch('/api/teacher/upload-pdf', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message);
+      }
+
+      const data = await res.json();
+      return type === 'learningOutcomes' ? data.pdf : data.pdfs?.[0];
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to process PDF');
+      return null;
+    }
+  };
+
+  const handleLearningOutcomesPdfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
     if (file.type !== 'application/pdf') {
       toast.error('Please upload a PDF file');
-      return false;
+      e.target.value = '';
+      return;
     }
-    if (file.size > 2 * 1024 * 1024) { // 2MB
+    if (file.size > 2 * 1024 * 1024) {
       toast.error('Learning outcomes PDF must be under 2MB');
-      return false;
+      e.target.value = '';
+      return;
     }
-    return true;
+
+    setUploadingLearningOutcomes(true);
+    const parsed = await uploadAndParsePdf(file, 'learningOutcomes');
+    if (parsed) {
+      setLearningOutcomesPdf(parsed);
+      toast.success(`Extracted ${parsed.numPages} page(s) from PDF`);
+    }
+    setUploadingLearningOutcomes(false);
+    e.target.value = '';
   };
 
-  const validateResourcePdf = (file: File): boolean => {
-    if (file.type !== 'application/pdf') {
-      toast.error('Please upload PDF files only');
-      return false;
-    }
-    if (file.size > 5 * 1024 * 1024) { // 5MB
-      toast.error('Resource PDFs must be under 5MB each');
-      return false;
-    }
-    return true;
-  };
-
-  const handleLearningOutcomesPdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && validateLearningOutcomesPdf(file)) {
-      setLearningOutcomesPdf(file);
-    }
-    e.target.value = ''; // Reset input
-  };
-
-  const handleResourcePdfsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleResourcePdfsChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
     const validFiles: File[] = [];
-    
     for (const file of files) {
       if (resourcePdfs.length + validFiles.length >= 3) {
         toast.error('Maximum 3 resource files allowed');
         break;
       }
-      if (validateResourcePdf(file)) {
-        validFiles.push(file);
+      if (file.type !== 'application/pdf') {
+        toast.error(`${file.name} is not a PDF file`);
+        continue;
       }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} exceeds 5MB limit`);
+        continue;
+      }
+      validFiles.push(file);
     }
-    
-    setResourcePdfs(prev => [...prev, ...validFiles].slice(0, 3));
-    e.target.value = ''; // Reset input
+
+    if (validFiles.length > 0) {
+      setUploadingResources(true);
+      const newPdfs: ParsedPdf[] = [];
+      
+      for (const file of validFiles) {
+        const parsed = await uploadAndParsePdf(file, 'resource');
+        if (parsed) {
+          newPdfs.push(parsed);
+        }
+      }
+      
+      if (newPdfs.length > 0) {
+        setResourcePdfs(prev => [...prev, ...newPdfs].slice(0, 3));
+        toast.success(`Processed ${newPdfs.length} resource PDF(s)`);
+      }
+      setUploadingResources(false);
+    }
+    e.target.value = '';
   };
 
   const removeResourcePdf = (index: number) => {
@@ -784,21 +835,33 @@ export default function TeacherAssignmentDashboard() {
                 {/* Learning Outcomes PDF Upload */}
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Learning Outcomes PDF * <span className="text-slate-500 font-normal">(max 2MB)</span>
+                    Learning Outcomes PDF * <span className="text-slate-500 font-normal">(max 2MB - text will be extracted)</span>
                   </label>
-                  {learningOutcomesPdf ? (
-                    <div className="flex items-center gap-2 bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2">
-                      <FiFileText className="text-indigo-400" />
-                      <span className="text-white text-sm flex-1 truncate">{learningOutcomesPdf.name}</span>
-                      <span className="text-slate-400 text-xs">
-                        {(learningOutcomesPdf.size / 1024 / 1024).toFixed(2)}MB
-                      </span>
-                      <button
-                        onClick={() => setLearningOutcomesPdf(null)}
-                        className="p-1 text-red-400 hover:text-red-300"
-                      >
-                        <FiX size={16} />
-                      </button>
+                  {uploadingLearningOutcomes ? (
+                    <div className="flex items-center justify-center gap-2 bg-slate-700/50 border border-indigo-500 rounded-lg px-3 py-4">
+                      <FiLoader className="animate-spin text-indigo-400" />
+                      <span className="text-indigo-400 text-sm">Processing PDF & extracting text...</span>
+                    </div>
+                  ) : learningOutcomesPdf ? (
+                    <div className="bg-slate-700/50 border border-green-500/50 rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <FiFileText className="text-green-400" />
+                        <span className="text-white text-sm flex-1 truncate">{learningOutcomesPdf.filename}</span>
+                        <span className="text-slate-400 text-xs">
+                          {learningOutcomesPdf.numPages} page(s)
+                        </span>
+                        <button
+                          onClick={() => setLearningOutcomesPdf(null)}
+                          className="p-1 text-red-400 hover:text-red-300"
+                        >
+                          <FiX size={16} />
+                        </button>
+                      </div>
+                      <div className="mt-2 text-xs text-slate-400 bg-slate-800/50 rounded p-2 max-h-20 overflow-y-auto">
+                        <span className="text-green-400">✓ Text extracted:</span>{' '}
+                        {learningOutcomesPdf.extractedText.substring(0, 200)}
+                        {learningOutcomesPdf.extractedText.length > 200 && '...'}
+                      </div>
                     </div>
                   ) : (
                     <label className="flex items-center justify-center gap-2 border-2 border-dashed border-slate-600 rounded-lg px-3 py-4 cursor-pointer hover:border-indigo-500 transition-colors">
@@ -817,25 +880,35 @@ export default function TeacherAssignmentDashboard() {
                 {/* Resource PDFs Upload */}
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Resource PDFs <span className="text-slate-500 font-normal">(max 3 files, 5MB each)</span>
+                    Resource PDFs <span className="text-slate-500 font-normal">(max 3 files, 5MB each - text will be extracted)</span>
                   </label>
                   <div className="space-y-2">
-                    {resourcePdfs.map((file, idx) => (
-                      <div key={idx} className="flex items-center gap-2 bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2">
-                        <FiFileText className="text-purple-400" />
-                        <span className="text-white text-sm flex-1 truncate">{file.name}</span>
-                        <span className="text-slate-400 text-xs">
-                          {(file.size / 1024 / 1024).toFixed(2)}MB
-                        </span>
-                        <button
-                          onClick={() => removeResourcePdf(idx)}
-                          className="p-1 text-red-400 hover:text-red-300"
-                        >
-                          <FiX size={16} />
-                        </button>
+                    {resourcePdfs.map((pdf, idx) => (
+                      <div key={idx} className="bg-slate-700/50 border border-purple-500/50 rounded-lg px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <FiFileText className="text-purple-400" />
+                          <span className="text-white text-sm flex-1 truncate">{pdf.filename}</span>
+                          <span className="text-slate-400 text-xs">
+                            {pdf.numPages} page(s)
+                          </span>
+                          <button
+                            onClick={() => removeResourcePdf(idx)}
+                            className="p-1 text-red-400 hover:text-red-300"
+                          >
+                            <FiX size={16} />
+                          </button>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500 truncate">
+                          ✓ {pdf.extractedText.substring(0, 100)}...
+                        </div>
                       </div>
                     ))}
-                    {resourcePdfs.length < 3 && (
+                    {uploadingResources ? (
+                      <div className="flex items-center justify-center gap-2 bg-slate-700/50 border border-purple-500 rounded-lg px-3 py-3">
+                        <FiLoader className="animate-spin text-purple-400" />
+                        <span className="text-purple-400 text-sm">Processing PDF(s)...</span>
+                      </div>
+                    ) : resourcePdfs.length < 3 && (
                       <label className="flex items-center justify-center gap-2 border-2 border-dashed border-slate-600 rounded-lg px-3 py-3 cursor-pointer hover:border-purple-500 transition-colors">
                         <FiUpload className="text-slate-400" />
                         <span className="text-slate-400 text-sm">

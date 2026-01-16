@@ -14,6 +14,14 @@ export interface IQuestion {
   difficulty?: 'easy' | 'medium' | 'hard';
 }
 
+// PDF document with extracted text
+export interface IPdfDocument {
+  filename: string;
+  extractedText: string;
+  numPages?: number;
+  uploadedAt: Date;
+}
+
 export interface IAssignment extends Document {
   _id: mongoose.Types.ObjectId;
   title: string;
@@ -28,9 +36,9 @@ export interface IAssignment extends Document {
   dueDate?: Date;
   status: AssignmentStatus;
   difficulty: DifficultyLevel;
-  // PDF uploads
-  learningOutcomesPdf?: string; // URL to uploaded learning outcomes PDF (max 2MB)
-  resourcePdfs?: string[]; // URLs to uploaded resource PDFs (max 3 files, 5MB each)
+  // PDF uploads with extracted text (stored in MongoDB)
+  learningOutcomesPdf?: IPdfDocument;
+  resourcePdfs?: IPdfDocument[];
   allowDraftSubmissions: boolean;
   requiresApproval: boolean;
   createdAt: Date;
@@ -117,10 +125,16 @@ const AssignmentSchema = new Schema<IAssignment>(
       default: 'medium',
     },
     learningOutcomesPdf: {
-      type: String,
+      filename: { type: String },
+      extractedText: { type: String },
+      numPages: { type: Number },
+      uploadedAt: { type: Date },
     },
     resourcePdfs: [{
-      type: String,
+      filename: { type: String, required: true },
+      extractedText: { type: String, required: true },
+      numPages: { type: Number },
+      uploadedAt: { type: Date, default: Date.now },
     }],
     allowDraftSubmissions: {
       type: Boolean,

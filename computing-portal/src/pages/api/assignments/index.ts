@@ -99,8 +99,8 @@ async function handlePost(
       difficulty,
       allowDraftSubmissions,
       requiresApproval,
-      learningOutcomesPdf,
-      resourcePdfs,
+      learningOutcomesPdf, // { filename, extractedText, numPages, uploadedAt }
+      resourcePdfs, // [{ filename, extractedText, numPages, uploadedAt }]
     } = req.body;
 
     // Validate required fields
@@ -131,7 +131,7 @@ async function handlePost(
       difficulty: difficulty || 'medium',
       allowDraftSubmissions: allowDraftSubmissions ?? true,
       requiresApproval: requiresApproval ?? true,
-      learningOutcomesPdf,
+      learningOutcomesPdf: learningOutcomesPdf || undefined,
       resourcePdfs: resourcePdfs || [],
     });
 

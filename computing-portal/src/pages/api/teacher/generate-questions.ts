@@ -34,6 +34,7 @@ export default async function handler(
       subject,
       topic,
       learningOutcomes,
+      additionalContext, // Optional: additional content from resource PDFs
       numQuestions,
       generateForClass, // If true, generate differentiated for each student
       classGroup,
@@ -44,6 +45,11 @@ export default async function handler(
         message: 'Subject, topic, and learning outcomes are required',
       });
     }
+
+    // Combine learning outcomes with additional context from resources
+    const combinedLearningOutcomes = additionalContext 
+      ? [...learningOutcomes, `Additional Reference Material:\n${additionalContext}`]
+      : learningOutcomes;
 
     const questionsCount = numQuestions || 10;
 
@@ -82,7 +88,7 @@ export default async function handler(
         const questions = await generateDifferentiatedQuestions(
           subject,
           topic,
-          learningOutcomes,
+          combinedLearningOutcomes,
           abilityLevel,
           questionsCount,
           performanceHistory
@@ -111,7 +117,7 @@ export default async function handler(
     const questions = await generateDifferentiatedQuestions(
       subject,
       topic,
-      learningOutcomes,
+      combinedLearningOutcomes,
       'at_grade',
       questionsCount
     );

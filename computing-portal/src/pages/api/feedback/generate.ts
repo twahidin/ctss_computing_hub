@@ -70,7 +70,7 @@ export default async function handler(
     // Save extracted text
     submission.extractedText = extractedText;
 
-    const assignment = submission.assignment;
+    const assignment = submission.assignment as any;
 
     // Get student's learning profile for ability level
     let abilityLevel: string | undefined;

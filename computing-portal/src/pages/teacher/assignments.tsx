@@ -450,6 +450,184 @@ export default function TeacherAssignmentDashboard() {
     setResourcePdfs(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Generate and download PDF (questions only or with answers)
+  const downloadQuestionsPdf = (includeAnswers: boolean) => {
+    if (generatedQuestions.length === 0) {
+      toast.error('No questions to download');
+      return;
+    }
+
+    const title = formData.title || 'Assignment';
+    const subject = formData.subject || 'Subject';
+    const topic = formData.topic || 'Topic';
+    const totalMarks = generatedQuestions.reduce((sum, q) => sum + q.marks, 0);
+
+    // Create HTML content for the PDF
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px;
+            line-height: 1.6;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+          .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+          }
+          .header p {
+            margin: 5px 0;
+            color: #666;
+          }
+          .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 5px;
+          }
+          .question {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+          }
+          .question-header {
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+          }
+          .question-text {
+            margin-bottom: 10px;
+          }
+          .answer-space {
+            border: 1px dashed #ccc;
+            min-height: 80px;
+            margin-top: 10px;
+            padding: 10px;
+            background: #fafafa;
+          }
+          .model-answer {
+            margin-top: 15px;
+            padding: 15px;
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            border-radius: 4px;
+          }
+          .model-answer-label {
+            font-weight: bold;
+            color: #2e7d32;
+            margin-bottom: 5px;
+          }
+          .marking-scheme {
+            margin-top: 10px;
+            padding: 10px;
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            border-radius: 4px;
+            font-size: 14px;
+          }
+          .marking-scheme-label {
+            font-weight: bold;
+            color: #e65100;
+            margin-bottom: 5px;
+          }
+          .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+          }
+          @media print {
+            body { padding: 20px; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>${title}</h1>
+          <p><strong>Subject:</strong> ${subject} | <strong>Topic:</strong> ${topic}</p>
+          <p><strong>Total Marks:</strong> ${totalMarks}</p>
+        </div>
+        
+        <div class="info-row">
+          <div><strong>Name:</strong> _______________________</div>
+          <div><strong>Class:</strong> ${formData.class || '________'}</div>
+          <div><strong>Date:</strong> _____________</div>
+        </div>
+
+        <div class="instructions" style="margin-bottom: 30px; padding: 15px; background: #e3f2fd; border-radius: 5px;">
+          <strong>Instructions:</strong>
+          <ul style="margin: 10px 0 0 0; padding-left: 20px;">
+            <li>Answer all questions in the spaces provided.</li>
+            <li>Show all working where applicable.</li>
+            <li>Total marks: ${totalMarks}</li>
+          </ul>
+        </div>
+
+        ${generatedQuestions.map((q, idx) => `
+          <div class="question">
+            <div class="question-header">
+              <span>Question ${idx + 1}</span>
+              <span>[${q.marks} marks]</span>
+            </div>
+            <div class="question-text">${q.question}</div>
+            ${!includeAnswers ? `
+              <div class="answer-space">
+                <em style="color: #999;">Write your answer here...</em>
+              </div>
+            ` : ''}
+            ${includeAnswers && q.modelAnswer ? `
+              <div class="model-answer">
+                <div class="model-answer-label">Model Answer:</div>
+                <div>${q.modelAnswer}</div>
+              </div>
+            ` : ''}
+            ${includeAnswers && q.markingScheme ? `
+              <div class="marking-scheme">
+                <div class="marking-scheme-label">Marking Scheme:</div>
+                <div>${q.markingScheme}</div>
+              </div>
+            ` : ''}
+          </div>
+        `).join('')}
+
+        <div class="footer">
+          <p>Generated by CTSS Computing Hub</p>
+        </div>
+
+        <script>
+          // Auto-print when opened
+          window.onload = function() {
+            window.print();
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    // Open in new window for printing/saving as PDF
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+    } else {
+      toast.error('Please allow popups to download PDF');
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'draft':
@@ -1178,18 +1356,64 @@ export default function TeacherAssignmentDashboard() {
 
                 {/* Generated Questions Preview */}
                 {generatedQuestions.length > 0 && (
-                  <div className="border border-slate-600 rounded-lg p-4">
-                    <h4 className="font-medium text-white mb-2">
-                      Generated Questions ({generatedQuestions.length})
-                    </h4>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                  <div className="border border-green-500/50 bg-green-500/5 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium text-white flex items-center gap-2">
+                        <FiCheckCircle className="text-green-400" />
+                        Generated Questions ({generatedQuestions.length})
+                        <span className="text-slate-400 text-sm font-normal">
+                          - Total: {generatedQuestions.reduce((sum, q) => sum + q.marks, 0)} marks
+                        </span>
+                      </h4>
+                    </div>
+                    
+                    {/* Download Buttons */}
+                    <div className="flex gap-2 mb-3">
+                      <button
+                        onClick={() => downloadQuestionsPdf(false)}
+                        className="flex-1 py-2 px-3 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-500 flex items-center justify-center gap-2"
+                      >
+                        <FiDownload size={14} />
+                        Download Questions (PDF)
+                      </button>
+                      <button
+                        onClick={() => downloadQuestionsPdf(true)}
+                        className="flex-1 py-2 px-3 bg-green-600 text-white text-sm rounded-lg hover:bg-green-500 flex items-center justify-center gap-2"
+                      >
+                        <FiDownload size={14} />
+                        Download with Answers (PDF)
+                      </button>
+                    </div>
+
+                    {/* Questions List */}
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
                       {generatedQuestions.map((q, idx) => (
-                        <div key={q.id} className="text-sm text-slate-300 bg-slate-700/30 p-2 rounded">
-                          <span className="text-indigo-400">Q{idx + 1}:</span> {q.question.substring(0, 100)}...
-                          <span className="text-slate-500 ml-2">({q.marks} marks)</span>
+                        <div key={q.id} className="text-sm bg-slate-700/50 p-3 rounded border border-slate-600">
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="text-indigo-400 font-medium">Q{idx + 1}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 bg-slate-600 rounded text-slate-300">
+                                {q.type}
+                              </span>
+                              <span className="text-xs px-2 py-0.5 bg-indigo-500/20 text-indigo-400 rounded">
+                                {q.marks} marks
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-slate-300">{q.question}</p>
+                          {q.modelAnswer && (
+                            <div className="mt-2 p-2 bg-green-500/10 border-l-2 border-green-500 rounded-r text-xs">
+                              <span className="text-green-400 font-medium">Answer: </span>
+                              <span className="text-slate-400">{q.modelAnswer.substring(0, 150)}{q.modelAnswer.length > 150 ? '...' : ''}</span>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
+                    
+                    <p className="text-xs text-slate-500 mt-3">
+                      💡 Tip: Click "Create Assignment" to save these questions, or download PDFs to review first.
+                    </p>
                   </div>
                 )}
               </div>

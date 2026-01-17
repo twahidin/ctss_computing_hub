@@ -37,12 +37,10 @@ async function handleGetFunctions(req: AuthenticatedRequest, res: NextApiRespons
     const skip = (pageNum - 1) * limitNum;
 
     // For admin users, only show functions their school has access to
-    let functionIds: string[] | null = null;
     if (req.user.profile === 'admin' && req.user.schoolId) {
-      const school = await School.findById(req.user.schoolId).lean();
-      if (school) {
-        functionIds = school.listAccessibleFunctions || [];
-        query._id = { $in: functionIds };
+      const school = await School.findById(req.user.schoolId).lean() as any;
+      if (school && school.listAccessibleFunctions) {
+        query._id = { $in: school.listAccessibleFunctions };
       }
     }
     // Super admin can see all functions

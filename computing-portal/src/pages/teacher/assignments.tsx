@@ -221,6 +221,37 @@ export default function TeacherAssignmentDashboard() {
     }
   };
 
+  const handleDeleteAssignment = async (assignmentId: string, title: string) => {
+    // Confirm deletion
+    if (!window.confirm(`Are you sure you want to delete "${title}"?\n\nIf there are submissions, it will be archived instead.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/assignments/${assignmentId}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message);
+      }
+
+      const data = await res.json();
+      
+      if (data.archived) {
+        toast.success('Assignment archived (has existing submissions)');
+      } else {
+        toast.success('Assignment deleted successfully');
+      }
+      
+      setExpandedAssignment(null);
+      fetchAssignments();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete assignment');
+    }
+  };
+
   const handleApproveSubmission = async (submissionId: string, action: 'approve' | 'return') => {
     try {
       const res = await fetch('/api/teacher/approve-submission', {
@@ -644,6 +675,13 @@ export default function TeacherAssignmentDashboard() {
                       >
                         <FiBell className="mr-1" />
                         Notify Class
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAssignment(assignment._id, assignment.title)}
+                        className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-500 flex items-center"
+                      >
+                        <FiTrash2 className="mr-1" />
+                        Delete
                       </button>
                     </div>
 

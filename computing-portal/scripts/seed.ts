@@ -80,30 +80,60 @@ async function seed() {
         updatedAt: new Date(),
       },
       {
-        functionName: 'AI Tutor',
-        functionCode: 'AI_TUTOR',
+        functionName: 'Feedback & Help',
+        functionCode: 'FEEDBACK_HELP',
         functionData: {
-          description: 'AI-powered tutoring assistant',
-          icon: '🤖',
-          route: '/tutor',
-          category: 'Learning',
+          description: 'View feedback and get help',
+          icon: '📝',
+          route: '/feedback-help',
+          category: 'Student',
         },
-        profileFunctionList: ['student', 'teacher', 'admin', 'super_admin'],
+        profileFunctionList: ['student'],
         isActive: true,
         isSystemFunction: true,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
       {
-        functionName: 'Syllabus',
-        functionCode: 'SYLLABUS',
+        functionName: 'Submit Assignment',
+        functionCode: 'SUBMIT_ASSIGNMENT',
         functionData: {
-          description: 'View course syllabus and progress',
-          icon: '📚',
-          route: '/syllabus',
-          category: 'Learning',
+          description: 'Upload and submit assignments',
+          icon: '📤',
+          route: '/submission',
+          category: 'Student',
         },
-        profileFunctionList: ['student', 'teacher', 'admin', 'super_admin'],
+        profileFunctionList: ['student'],
+        isActive: true,
+        isSystemFunction: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        functionName: 'My Progress',
+        functionCode: 'STUDENT_DASHBOARD',
+        functionData: {
+          description: 'View your progress and notifications',
+          icon: '📈',
+          route: '/student/dashboard',
+          category: 'Student',
+        },
+        profileFunctionList: ['student'],
+        isActive: true,
+        isSystemFunction: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        functionName: 'Assignment Dashboard',
+        functionCode: 'ASSIGNMENT_DASHBOARD',
+        functionData: {
+          description: 'Create and manage assignments',
+          icon: '📋',
+          route: '/teacher/assignments',
+          category: 'Teaching',
+        },
+        profileFunctionList: ['teacher', 'admin', 'super_admin'],
         isActive: true,
         isSystemFunction: true,
         createdAt: new Date(),
@@ -182,13 +212,6 @@ async function seed() {
         savedConfiguration: {},
         approvalStatus: 'approved',
         approvedAt: new Date(),
-        progress: {
-          module1: 100,
-          module2: 100,
-          module3: 100,
-          module4: 100,
-          module5: 100,
-        },
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -206,13 +229,6 @@ async function seed() {
         savedConfiguration: {},
         approvalStatus: 'approved',
         approvedAt: new Date(),
-        progress: {
-          module1: 100,
-          module2: 100,
-          module3: 100,
-          module4: 100,
-          module5: 100,
-        },
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -230,13 +246,6 @@ async function seed() {
         savedConfiguration: {},
         approvalStatus: 'approved',
         approvedAt: new Date(),
-        progress: {
-          module1: 100,
-          module2: 100,
-          module3: 100,
-          module4: 100,
-          module5: 100,
-        },
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -254,13 +263,6 @@ async function seed() {
         savedConfiguration: {},
         approvalStatus: 'approved',
         approvedAt: new Date(),
-        progress: {
-          module1: 45,
-          module2: 30,
-          module3: 20,
-          module4: 10,
-          module5: 5,
-        },
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -276,13 +278,6 @@ async function seed() {
         level: 'Secondary 4',
         savedConfiguration: {},
         approvalStatus: 'pending',
-        progress: {
-          module1: 0,
-          module2: 0,
-          module3: 0,
-          module4: 0,
-          module5: 0,
-        },
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -300,13 +295,6 @@ async function seed() {
         savedConfiguration: {},
         approvalStatus: 'approved',
         approvedAt: new Date(),
-        progress: {
-          module1: 100,
-          module2: 100,
-          module3: 100,
-          module4: 100,
-          module5: 100,
-        },
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -376,6 +364,15 @@ async function seed() {
     console.log('\n  DEMO SCHOOL ADMIN:');
     console.log('    Username: demo_admin');
     console.log('    Password: password123');
+    
+    console.log('\n📝 Functions Available:');
+    console.log('  - Python Notebook: All users');
+    console.log('  - Spreadsheet: All users');
+    console.log('  - Feedback & Help: Students only');
+    console.log('  - Submit Assignment: Students only');
+    console.log('  - My Progress: Students only');
+    console.log('  - Assignment Dashboard: Teachers, Admins, Super Admin');
+    console.log('  - Admin Dashboard: Teachers, Admins, Super Admin');
     
     console.log('\n📝 Role Permissions:');
     console.log('  - super_admin: Full system access, can edit MongoDB');

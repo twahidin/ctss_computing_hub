@@ -1,6 +1,6 @@
 import type { NextApiResponse } from 'next';
 import dbConnect from '@/lib/mongodb';
-import { Function } from '@/models';
+import { Function, School } from '@/models';
 import { withMinProfile, AuthenticatedRequest } from '@/lib/roleAuth';
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
@@ -35,6 +35,17 @@ async function handleGetFunctions(req: AuthenticatedRequest, res: NextApiRespons
     const pageNum = parseInt(page as string, 10);
     const limitNum = parseInt(limit as string, 10);
     const skip = (pageNum - 1) * limitNum;
+
+    // For admin users, only show functions their school has access to
+    let functionIds: string[] | null = null;
+    if (req.user.profile === 'admin' && req.user.schoolId) {
+      const school = await School.findById(req.user.schoolId).lean();
+      if (school) {
+        functionIds = school.listAccessibleFunctions || [];
+        query._id = { $in: functionIds };
+      }
+    }
+    // Super admin can see all functions
 
     const [functions, total] = await Promise.all([
       Function.find(query)

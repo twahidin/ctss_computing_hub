@@ -441,6 +441,20 @@ export default function AdminDashboard() {
             {isAdmin && `School Administrator - ${session.user.school || 'No school assigned'}`}
             {isTeacher && `Teacher - ${session.user.class || 'No class assigned'}`}
           </p>
+          {isAdmin && !isSuperAdmin && (
+            <div className="mt-2 px-3 py-2 bg-indigo-500/10 border border-indigo-500/30 rounded-lg inline-block">
+              <p className="text-sm text-indigo-300">
+                🔒 You can only manage users and data within your school
+              </p>
+            </div>
+          )}
+          {isTeacher && !isAdmin && !isSuperAdmin && (
+            <div className="mt-2 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-lg inline-block">
+              <p className="text-sm text-amber-300">
+                🔒 You can only manage students in your class
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
@@ -633,6 +647,14 @@ export default function AdminDashboard() {
                       </button>
                     )}
                   </div>
+                  {isAdmin && !isSuperAdmin && (
+                    <div className="mb-4 p-3 bg-slate-700/50 rounded-lg">
+                      <p className="text-sm text-slate-300">
+                        <span className="text-indigo-400">ℹ️</span> You can edit classes and levels for your school. 
+                        Contact a super admin to change other school settings.
+                      </p>
+                    </div>
+                  )}
                   
                   {schools.length === 0 ? (
                     <p className="text-slate-400 text-center py-8">No schools found</p>
@@ -688,9 +710,20 @@ export default function AdminDashboard() {
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-semibold text-white">Function Management</h2>
                     <p className="text-slate-400 text-sm">
-                      Manage which profiles and schools can access each function
+                      {isSuperAdmin 
+                        ? 'Manage which profiles and schools can access each function'
+                        : 'View functions available to your school'
+                      }
                     </p>
                   </div>
+                  {isAdmin && !isSuperAdmin && (
+                    <div className="mb-4 p-3 bg-slate-700/50 rounded-lg">
+                      <p className="text-sm text-slate-300">
+                        <span className="text-indigo-400">ℹ️</span> As a school admin, you can view which functions are enabled for your school. 
+                        Contact a super admin to change function access.
+                      </p>
+                    </div>
+                  )}
                   
                   {functions.length === 0 ? (
                     <p className="text-slate-400 text-center py-8">No functions configured</p>
@@ -744,8 +777,8 @@ export default function AdminDashboard() {
                                 System Function
                               </span>
                             )}
-                            {/* Edit Button */}
-                            {isSuperAdmin && (
+                            {/* Edit Button - Only for super admin */}
+                            {isSuperAdmin ? (
                               <div className="pt-3 border-t border-slate-700/50">
                                 <button
                                   onClick={() => openEditFunction(func)}
@@ -753,6 +786,12 @@ export default function AdminDashboard() {
                                 >
                                   ✏️ Edit Access
                                 </button>
+                              </div>
+                            ) : (
+                              <div className="pt-3 border-t border-slate-700/50">
+                                <span className="text-xs text-slate-500">
+                                  ✓ Enabled for your school
+                                </span>
                               </div>
                             )}
                           </div>

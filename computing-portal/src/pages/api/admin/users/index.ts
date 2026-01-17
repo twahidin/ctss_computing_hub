@@ -55,6 +55,7 @@ async function handleGetUsers(req: AuthenticatedRequest, res: NextApiResponse) {
     const [users, total] = await Promise.all([
       User.find(query)
         .select('-password')
+        .populate('school', 'schoolName schoolCode')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
@@ -62,8 +63,16 @@ async function handleGetUsers(req: AuthenticatedRequest, res: NextApiResponse) {
       User.countDocuments(query),
     ]);
 
+    // Map users to include schoolName from populated school
+    const usersWithSchoolName = users.map((user: any) => ({
+      ...user,
+      schoolName: user.school?.schoolName || user.schoolName || '',
+      schoolCode: user.school?.schoolCode || '',
+      school: user.school?._id || user.school, // Keep the school ID
+    }));
+
     return res.status(200).json({
-      users,
+      users: usersWithSchoolName,
       pagination: {
         page: pageNum,
         limit: limitNum,

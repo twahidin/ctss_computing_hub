@@ -115,10 +115,13 @@ async function handleCreateUser(req: AuthenticatedRequest, res: NextApiResponse)
     }
 
     // Admin can only create users in their own school
+    let finalSchoolId = schoolId;
     if (req.user.profile === 'admin') {
       if (schoolId && schoolId !== req.user.schoolId) {
         return res.status(403).json({ message: 'Admins can only create users in their own school' });
       }
+      // Auto-assign admin's school if not provided
+      finalSchoolId = req.user.schoolId;
     }
 
     // Check if username already exists
@@ -129,8 +132,8 @@ async function handleCreateUser(req: AuthenticatedRequest, res: NextApiResponse)
 
     // Get school name if schoolId provided
     let schoolName = '';
-    if (schoolId) {
-      const school = await School.findById(schoolId);
+    if (finalSchoolId) {
+      const school = await School.findById(finalSchoolId);
       if (school) {
         schoolName = school.schoolName;
       }
@@ -142,7 +145,7 @@ async function handleCreateUser(req: AuthenticatedRequest, res: NextApiResponse)
       name,
       email,
       profile: targetProfile,
-      school: schoolId || null,
+      school: finalSchoolId || null,
       schoolName,
       class: userClass || '',
       level: level || '',

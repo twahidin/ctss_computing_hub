@@ -72,6 +72,18 @@ export default function AdminDashboard() {
     isActive: true,
     schoolAccess: [] as string[], // school IDs that have access
   });
+
+  // New user form state
+  const [newUserForm, setNewUserForm] = useState({
+    username: '',
+    password: '',
+    name: '',
+    email: '',
+    profile: 'student' as UserProfile,
+    schoolId: '',
+    class: '',
+    level: '',
+  });
   
   const userProfile = session?.user?.profile as UserProfile;
   const isSuperAdmin = userProfile === 'super_admin';
@@ -399,6 +411,48 @@ export default function AdminDashboard() {
         : [...prev.schoolAccess, schoolId];
       return { ...prev, schoolAccess: newList };
     });
+  };
+
+  // Handle create user
+  const handleCreateUser = async () => {
+    if (!newUserForm.username || !newUserForm.password || !newUserForm.name || !newUserForm.profile) {
+      toast.error('Username, password, name, and profile are required');
+      return;
+    }
+
+    if (newUserForm.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    try {
+      await axios.post('/api/admin/users', {
+        username: newUserForm.username,
+        password: newUserForm.password,
+        name: newUserForm.name,
+        email: newUserForm.email,
+        profile: newUserForm.profile,
+        schoolId: isSuperAdmin ? newUserForm.schoolId : session?.user?.schoolId,
+        class: newUserForm.class,
+        level: newUserForm.level,
+        approvalStatus: 'approved',
+      });
+      toast.success('User created successfully');
+      setShowUserModal(false);
+      setNewUserForm({
+        username: '',
+        password: '',
+        name: '',
+        email: '',
+        profile: 'student',
+        schoolId: '',
+        class: '',
+        level: '',
+      });
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to create user');
+    }
   };
 
   // Render tabs based on user profile
@@ -1359,6 +1413,168 @@ export default function AdminDashboard() {
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
               >
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add User Modal */}
+      {showUserModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-lg border border-slate-700 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-semibold text-white mb-4">Add New User</h3>
+            {isAdmin && !isSuperAdmin && (
+              <div className="mb-4 p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
+                <p className="text-sm text-indigo-300">
+                  User will be added to your school: <strong>{session?.user?.school}</strong>
+                </p>
+              </div>
+            )}
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Username <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newUserForm.username}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, username: e.target.value })}
+                  placeholder="e.g., john_doe"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Password <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={newUserForm.password}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                  placeholder="Min 6 characters"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Full Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newUserForm.name}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
+                  placeholder="e.g., John Doe"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={newUserForm.email}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                  placeholder="e.g., john@school.edu.sg"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Profile/Role <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={newUserForm.profile}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, profile: e.target.value as UserProfile })}
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="student">Student</option>
+                  <option value="teacher">Teacher</option>
+                  {isSuperAdmin && <option value="admin">Admin</option>}
+                </select>
+                {isAdmin && !isSuperAdmin && (
+                  <p className="text-slate-500 text-xs mt-1">School admins can create students and teachers</p>
+                )}
+              </div>
+
+              {isSuperAdmin && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                    School
+                  </label>
+                  <select
+                    value={newUserForm.schoolId}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, schoolId: e.target.value })}
+                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="">No School</option>
+                    {schools.map((school) => (
+                      <option key={school._id} value={school._id}>
+                        {school.schoolName} ({school.schoolCode})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                    Class
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserForm.class}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, class: e.target.value })}
+                    placeholder="e.g., 4A"
+                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                    Level
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserForm.level}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, level: e.target.value })}
+                    placeholder="e.g., Sec 4"
+                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowUserModal(false);
+                  setNewUserForm({
+                    username: '',
+                    password: '',
+                    name: '',
+                    email: '',
+                    profile: 'student',
+                    schoolId: '',
+                    class: '',
+                    level: '',
+                  });
+                }}
+                className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateUser}
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
+              >
+                Create User
               </button>
             </div>
           </div>

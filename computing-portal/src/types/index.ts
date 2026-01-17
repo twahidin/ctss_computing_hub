@@ -45,31 +45,6 @@ declare module 'next-auth/jwt' {
   }
 }
 
-// Syllabus Module Types
-export interface Module {
-  id: number;
-  name: string;
-  description: string;
-  topics: Topic[];
-  color: string;
-  icon: string;
-}
-
-export interface Topic {
-  id: string;
-  name: string;
-  learningOutcomes: string[];
-  exercises: ExerciseInfo[];
-}
-
-export interface ExerciseInfo {
-  id: string;
-  title: string;
-  type: 'notebook' | 'spreadsheet' | 'quiz' | 'coding';
-  difficulty: 'easy' | 'medium' | 'hard';
-  estimatedTime: number; // in minutes
-}
-
 // Spreadsheet Types
 export interface SpreadsheetData {
   name: string;
@@ -92,38 +67,6 @@ export interface CellData {
     bl?: number; // bold
     it?: number; // italic
   };
-}
-
-// Chat Types
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp?: Date;
-}
-
-export interface ChatContext {
-  module?: number;
-  topic?: string;
-  currentExercise?: string;
-  codeSnippet?: string;
-  spreadsheetContext?: string;
-}
-
-// Progress Types
-export interface ModuleProgress {
-  module1: number;
-  module2: number;
-  module3: number;
-  module4: number;
-  module5: number;
-}
-
-export interface StudentStats {
-  totalExercises: number;
-  completedExercises: number;
-  averageScore: number;
-  totalTimeSpent: number;
-  streakDays: number;
 }
 
 // Admin Types
